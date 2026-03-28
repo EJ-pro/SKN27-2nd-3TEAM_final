@@ -34,9 +34,26 @@ app_simulator_page = st.Page(
 
 # 사이드바 내비게이션 그룹화
 pg = st.navigation({
-    "대시보드": [action_board_page, app_simulator_page],
-    "시뮬레이터": [action_manager_page],
+    "대시보드": [action_board_page, action_manager_page],
+    "시뮬레이터": [app_simulator_page],
 })
 
 # 페이지 실행
 pg.run()
+
+# ==========================================
+# 3. 사이드바 음악 플레이어 (가지마가지마)
+# ==========================================
+with st.sidebar:
+    st.markdown("---")
+    # st.write("🎵 **Now Playing: 가지마가지마**")
+    # st.components.v1.html(
+    #     """
+    #     <iframe width="100%" height="150" src="https://www.youtube.com/embed/JOhTmgtevXc?start=60&autoplay=1&mute=0" 
+    #     title="브라운아이즈 - 가지마가지마" frameborder="0" 
+    #     allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" 
+    #     allowfullscreen></iframe>
+    #     """,
+    #     height=160,
+    # )
+    st.caption("🚀 **3팀 프로젝트: 이탈 방어 시스템**")
