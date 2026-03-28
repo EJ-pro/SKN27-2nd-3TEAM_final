@@ -1,2 +1,8 @@
 .venv
 data/processed/*.csv
+.env
+frontend/pages/__pycache__
+frontend/__pycache__
+frontend/pages/action/__pycache__
+frontend/pages/simulator/__pycache__
+frontend/pages/action_board/__pycache__
