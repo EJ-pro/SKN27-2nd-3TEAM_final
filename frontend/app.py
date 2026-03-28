@@ -26,9 +26,15 @@ action_manager_page = st.Page(
     icon="🎯"
 )
 
+app_simulator_page = st.Page(
+    "pages/overview/app_simulator.py",
+    title="마케팅 성과 시뮬레이터",
+    icon="📈"
+)
+
 # 사이드바 내비게이션 그룹화
 pg = st.navigation({
-    "대시보드": [action_board_page],
+    "대시보드": [action_board_page, app_simulator_page],
     "시뮬레이터": [action_manager_page],
 })
 
