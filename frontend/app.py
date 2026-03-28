@@ -21,13 +21,13 @@ action_board_page = st.Page(
 )
 
 action_manager_page = st.Page(
-    "pages/simulator/app_action.py",
+    "pages/action/app_action.py",
     title="고위험군 액션 보드",
     icon="🎯"
 )
 
 app_simulator_page = st.Page(
-    "pages/overview/app_simulator.py",
+    "pages/simulator/app_simulator.py",
     title="마케팅 성과 시뮬레이터",
     icon="📈"
 )

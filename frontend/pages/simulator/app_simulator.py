@@ -5,8 +5,8 @@ import plotly.express as px
 from datetime import datetime
 
 # ── 페이지 설정 ──
-st.title("📈 마케팅 성과 시뮬레이터 (A/B Test)")
-st.caption("캠페인 전략별 예상 이탈 방어율과 ROI(수익성)를 실시간으로 비교 분석합니다.")
+st.title("📈 마케팅 성과 시뮬레이터")
+st.caption("캠페인 전략별 예상 이탈 방어율을 비교 분석합니다.")
 
 # ==========================================
 # 0. 데모 데이터 셋업 (시뮬레이션용)
@@ -83,7 +83,7 @@ with config_col3:
 # 2. 중단: 시뮬레이션 결과 차트
 # ==========================================
 st.divider()
-st.write("### 📊 캠페인 성과 예측 결과 (3개월 시뮬레이션)")
+st.write("### 📊 캠페인 성과 예측 결과")
 chart_col1, chart_col2, chart_col3 = st.columns([1, 1, 2])
 
 # Donut Chart 생성 함수
@@ -132,7 +132,7 @@ with chart_col3:
     
     fig_rev = px.bar(
         revenue_data, x="Month", y="Revenue", color="Group",
-        barmode="group", title="예상 수익 추이 (TWD)",
+        barmode="group", title="예상 수익 추이",
         color_discrete_map={"Group A": "#00CC96", "Group B": "#636EFA"}
     )
     st.plotly_chart(fig_rev, use_container_width=True)
@@ -147,23 +147,7 @@ total_rev_b = sum(rev_b)
 better_group = "A" if total_rev_a > total_rev_b else "B"
 diff_rev = abs(total_rev_a - total_rev_b)
 
-"""
-🚨 [TODO 주석: Groq API 연동 구역] 🚨
-여기에 Groq API를 연결하여 동적인 추천 메시지를 받아오세요.
-
-```python
-def get_groq_recommendation(group_a_rev, group_b_rev, retention_a, retention_b):
-    # TODO: Groq API를 호출하여 프롬프트를 던지고 분석 답변을 받아오세요.
-    # prompt = f\"\"\"
-    # Group A(할인)의 3개월 예상수익은 {group_a_rev}원, 방어율은 {retention_a}%입니다.
-    # Group B(무료연장)의 3개월 예상수익은 {group_b_rev}원, 방어율은 {retention_b}%입니다.
-    # 어떤 전략이 장기적으로 유리할지 1문장으로 요약해줘.
-    # \"\"\"
-    return "AI 추천을 서버에서 불러오는 중..."
-```
-"""
-
-st.write("#### 🛡️ AI 전략 제언 (시뮬레이션 결론)")
+st.write("#### 🛡️ 시뮬레이션 결론")
 if better_group == "A":
     st.success(f"🟢 **결론**: Group B(무료 연장)가 초기 방어율은 일정하게 유지되나, **A그룹(할인 쿠폰)이 단기 수익 회수가 빠르고 3개월 누적 수익이 {diff_rev:,.0f} TWD 더 높습니다.** 장기 ROI 측면에서 A그룹 전략을 추천합니다.")
 else:

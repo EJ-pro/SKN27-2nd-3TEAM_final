@@ -1,3 +1,4 @@
 .venv
 data/processed/*.csv
 .env
+frontend/pages/__pycache__
