@@ -1,17 +1,3 @@
-"""
-app.py — UI 전담 진입점.
-
-책임:
-  - Streamlit 레이아웃 구성
-  - 사이드바 설정값 수집
-  - config / data_layer / metrics 를 조합해 화면에 표시
-
-이 파일은 비즈니스 로직을 직접 구현하지 않습니다.
-KPI 계산이 필요하면 metrics.py를 호출하고,
-데이터가 필요하면 data_layer.py를 호출합니다.
-
-실행: streamlit run app.py
-"""
 from __future__ import annotations
 
 from datetime import datetime
@@ -26,7 +12,7 @@ from pages.action_board.metrics import build_kpi_report, build_trend_data, build
 
 # ── 페이지 설정 ───────────────────────────────────────────────────────────────
 st.set_page_config(
-    page_title="KKBox Churn Defense",
+    page_title="메인 현황판",
     layout="wide",
     initial_sidebar_state="expanded",
 )
@@ -87,8 +73,8 @@ trend_df = build_trend_data(transactions, virtual_today)
 
 
 # ── 헤더 ──────────────────────────────────────────────────────────────────────
-st.title("📊 Churn Defense 관제탑")
-st.subheader("실시간 이탈 방어 현황 (Data Shifting & Scale-up 적용)")
+st.title("📊 이탈율 관리 시스템")
+st.subheader("이탈 방어 현황")
 
 
 # ── KPI 카드 ──────────────────────────────────────────────────────────────────
@@ -172,6 +158,6 @@ st.info(f"""
   (전일 대비 {report.user_delta:+,}명)
 - 이탈 방어 성공률: **{report.today.defense_rate:.1f}%** \
   (전일 대비 {report.defense_rate_delta:+.1f}%p)
-- 주요 알림: 고위험 유저 중 **{max(churn_reasons, key=churn_reasons.get)}** 비중이 가장 높습니다. \
-  맞춤형 케어 프로모션 발송을 권장합니다.
+- 주요 알림: 고위험 유저 중 **{max(CHURN_REASONS, key=CHURN_REASONS.get)}** 비중이 가장 높습니다. \
+  맞춤형 할인 쿠폰 발송을 권장합니다.
 """)
