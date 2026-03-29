@@ -7,15 +7,27 @@ def load_members():
     df = pd.read_csv(r"C:\dev\Project\SKN27-2nd-3TEAM\backend\data\raw\train_members_v2.csv")
     if "registration_init_time" in df.columns:
         df["registration_init_time"] = pd.to_datetime(
-            df["registration_init_time"], format="%Y%m%d", errors="coerce"
+            df["registration_init_time"], errors="coerce"
         ).dt.date
     df.to_sql("members", con=engine, if_exists="append", index=False)
 
 def load_transactions():
     df = pd.read_csv(r"C:\dev\Project\SKN27-2nd-3TEAM\backend\data\raw\transactions_v2.csv")
+
     for col in ["transaction_date", "membership_expire_date"]:
         if col in df.columns:
-            df[col] = pd.to_datetime(df[col], format="%Y%m%d", errors="coerce").dt.date
+            df[col] = (
+                df[col]
+                .astype(str)
+                .str.strip()
+                .replace({"": None, "nan": None, "None": None})
+            )
+            df[col] = pd.to_datetime(df[col], errors="coerce").dt.date
+
+    print(df[["transaction_date", "membership_expire_date"]].head(10))
+    print("transaction_date 결측 수:", df["transaction_date"].isna().sum())
+    print("membership_expire_date 결측 수:", df["membership_expire_date"].isna().sum())
+
     df.to_sql("transactions", con=engine, if_exists="append", index=False)
 
 def load_user_logs():

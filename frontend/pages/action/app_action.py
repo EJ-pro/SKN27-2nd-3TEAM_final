@@ -7,7 +7,7 @@ from pages.action.config import (
     PLUS_PRICE_THRESHOLD, RISK_GRADES, VVIP_ACTION_TEXT, 
     GENERAL_ACTION_TEXT, VVIP_SUCCESS_MSG, GENERAL_SUCCESS_MSG
 )
-from pages.action.data_layer import get_real_action_data, apply_filters, segment_by_plus_price
+from pages.action.data_layer import get_real_action_data, apply_filters, segment_by_plus_price, debug_action_board
 
 # ── 세션 상태 초기화 ──
 if "vvip_selected" not in st.session_state:
@@ -25,10 +25,12 @@ st.caption("고객 가치에 따라 그룹을 나누어 맞춤형 마케팅 액�
 with st.sidebar:
     st.write("### 📅 시뮬레이션 설정")
     virtual_today_val = st.date_input("분석 기준일", value=datetime.now().date())
-    virtual_today = datetime.combine(virtual_today_val, datetime.min.time())
+    #virtual_today = datetime.combine(virtual_today_val, datetime.min.time())
+    virtual_today = pd.to_datetime(virtual_today_val)
 
 with st.spinner("📦 데이터 분석 중..."):
     target_df = get_real_action_data(virtual_today)
+    #debug_action_board(virtual_today)
 
 if target_df.empty:
     st.warning("분석일 기준 만료 예정인 고위험 유저가 없습니다.")

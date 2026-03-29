@@ -45,10 +45,33 @@ def _parse_date_columns(df: pd.DataFrame) -> pd.DataFrame:
     df.columns = df.columns.str.strip()
 
     date_cols = [c for c in df.columns if ("date" in c.lower()) or ("time" in c.lower())]
+
     for col in date_cols:
-        yyyymmdd = pd.to_datetime(df[col], format="%Y%m%d", errors="coerce")
-        general = pd.to_datetime(df[col], errors="coerce")
-        df[col] = yyyymmdd.fillna(general)
+        s = df[col].copy()
+
+        # 1) 문자열로 통일
+        s = s.astype(str).str.strip()
+
+        # 2) 자주 나오는 비정상값 제거
+        s = s.replace({
+            "nan": None,
+            "None": None,
+            "NaT": None,
+            "": None,
+            "0": None,
+            "00000000": None,
+        })
+
+        # 3) 20170131.0 같은 값 처리
+        s = s.str.replace(r"\.0$", "", regex=True)
+
+        # 4) YYYYMMDD 우선 파싱
+        parsed = pd.to_datetime(s, format="%Y%m%d", errors="coerce")
+
+        # 5) 그래도 실패한 건 일반 파싱 재시도
+        fallback = pd.to_datetime(s, errors="coerce")
+
+        df[col] = parsed.fillna(fallback)
 
     return df
 
