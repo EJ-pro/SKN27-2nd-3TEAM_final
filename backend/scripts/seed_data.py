@@ -1,5 +1,5 @@
 import pandas as pd
-from backend.app.database.connection import get_engine
+from app.database.connection import get_engine
 
 engine = get_engine()
 
