@@ -10,7 +10,7 @@ TWD_TO_KRW = 42  # 1 대만 달러 ≈ 42 한국 원
 
 # 고위험 유저 판정 기준
 HIGH_RISK_THRESHOLD = 0.70          # 이탈 확률 >= 이 값이면 고위험
-EXPIRY_WINDOW_DAYS  = 3             # 만료일까지 남은 일수 <= 이 값이면 대상
+EXPIRY_WINDOW_DAYS  = 14            # 만료일까지 남은 일수 <= 이 값이면 대상
 
 # 이탈 주원인 (TODO: SHAP 변수 중요도로 교체)
 CHURN_REASONS = {

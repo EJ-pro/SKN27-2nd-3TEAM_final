@@ -4,7 +4,7 @@ from datetime import datetime, timedelta
 import streamlit as st
 
 # [중요] 기존 액션 보드 모듈에서 데이터 처리 및 설정 재사용
-from pages.action_board.config import HIGH_RISK_THRESHOLD, TWD_TO_KRW, EXPIRY_WINDOW_DAYS
+from pages.action_board.config import HIGH_RISK_THRESHOLD, TWD_TO_KRW, EXPIRY_WINDOW_DAYS, CHURN_REASONS
 from pages.action_board.data_layer import load_raw_data, inject_churn_probability
 
 @st.cache_data
@@ -61,10 +61,10 @@ def get_real_action_data(virtual_today):
     # ── 4. 이탈 주원인 추론 (Heuristic) ──
     def determine_reason(row):
         if row.get("is_cancel") == 1:
-            return "멤버십 직접해지"
+            return "자동결제 해지"
         if row.get("is_auto_renew") == 0:
-            return "자동결제 미등록"
-        return "활동성 저하(추정)"
+            return "자동결제 해지"
+        return "기타"
     
     candidates["main_reason_code"] = candidates.apply(determine_reason, axis=1)
     
@@ -107,40 +107,7 @@ def get_real_action_data(virtual_today):
     })
     
     return final_df
-#################################### test ####################################
-import streamlit as st
-import pandas as pd
-from datetime import timedelta
 
-from pages.action_board.data_layer import load_raw_data, inject_churn_probability
-from pages.action_board.config import EXPIRY_WINDOW_DAYS, HIGH_RISK_THRESHOLD
-
-
-def debug_action_board(virtual_today):
-    st.subheader("디버깅 체크")
-
-    # 0) 캐시 초기화 버튼
-    if st.button("캐시 초기화"):
-        st.cache_data.clear()
-        st.success("캐시 초기화 완료. 새로고침해봐.")
-
-    raw_result = load_raw_data()
-    trans_df = raw_result["transactions"]
-    prob_df = inject_churn_probability(trans_df)
-
-    # 1) 원천 데이터 존재 여부
-    min_date = prob_df["membership_expire_date"].min()
-    max_date = prob_df["membership_expire_date"].max()
-
-    st.write("데이터 범위:", min_date, "~", max_date)
-    st.write("선택 날짜:", virtual_today)
-
-    if virtual_today > max_date:
-        st.warning("현재 날짜가 데이터 범위를 벗어남 → 자동 보정")
-        virtual_today = max_date - pd.Timedelta(days=3)
-
-
-#################################### test ####################################
 
 def apply_filters(df, selected_grades, selected_reasons):
     """

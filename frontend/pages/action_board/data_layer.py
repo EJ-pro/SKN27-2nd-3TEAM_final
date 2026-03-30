@@ -94,6 +94,11 @@ def load_raw_data() -> dict[str, pd.DataFrame]:
         predictions = _read_table("churn_predictions")
     except Exception:
         predictions = pd.DataFrame()
+    print("members:", members.shape)
+    print("transactions:", transactions.shape)
+    print("user_logs:", user_logs.shape)
+    print("predictions:", predictions.shape)
+
 
     # 1) members.is_churn 병합
     if not members.empty and not transactions.empty:
@@ -152,7 +157,7 @@ def load_raw_data() -> dict[str, pd.DataFrame]:
     }
 
 
-def inject_churn_probability(
+def _inject_churn_probability(
     transactions: pd.DataFrame,
     model=None,
 ) -> pd.DataFrame:
@@ -263,5 +268,132 @@ def inject_churn_probability(
                 return "자동결제 미등록"
             return "활동성 저하(추정)"
         df["main_reason_code"] = df.apply(determine_reason, axis=1)
+
+    return df
+
+def inject_churn_probability(
+    transactions: pd.DataFrame,
+    model=None,
+) -> pd.DataFrame:
+    """
+    우선순위
+    1. churn_predictions 테이블 값 사용
+    2. transactions에 이미 churn_prob 있으면 사용
+    3. is_churn 기반 더미
+    4. is_auto_renew 기반 더미
+
+    + main_reason_code가 없거나 비어 있으면 fallback 원인 생성
+    """
+    df = transactions.copy()
+    if df.empty:
+        return df
+
+    raw = load_raw_data()
+    predictions = raw.get("predictions", pd.DataFrame())
+
+    def determine_reason(row):
+        if row.get("is_cancel") == 1:
+            return "멤버십 직접해지"
+        if row.get("is_auto_renew") == 0:
+            return "자동결제 미등록"
+        return "활동성 저하(추정)"
+
+    # 1) churn_predictions 우선 사용
+    if not predictions.empty and "msno" in predictions.columns:
+        pred_df = predictions.copy()
+
+        if "prediction_date" in pred_df.columns:
+            pred_df = pred_df.sort_values("prediction_date").drop_duplicates("msno", keep="last")
+
+        keep_cols = ["msno"]
+        if "churn_probability" in pred_df.columns:
+            keep_cols.append("churn_probability")
+        if "risk_grade" in pred_df.columns:
+            keep_cols.append("risk_grade")
+        if "main_reason_code" in pred_df.columns:
+            keep_cols.append("main_reason_code")
+
+        pred_df = pred_df[keep_cols]
+        df = pd.merge(df, pred_df, on="msno", how="left")
+
+        # churn_probability -> churn_prob 통일
+        if "churn_probability" in df.columns:
+            df["churn_prob"] = df["churn_probability"]
+
+        # churn_prob fallback
+        if "churn_prob" not in df.columns:
+            df["churn_prob"] = np.nan
+
+        missing_mask = df["churn_prob"].isna()
+        if missing_mask.any():
+            rng = np.random.default_rng(42)
+
+            if "is_churn" in df.columns:
+                df.loc[missing_mask, "churn_prob"] = df.loc[missing_mask, "is_churn"].apply(
+                    lambda x: rng.uniform(0.85, 1.0) if x == 1 else rng.uniform(0.0, 0.4)
+                )
+            elif "is_auto_renew" in df.columns:
+                df.loc[missing_mask, "churn_prob"] = np.where(
+                    df.loc[missing_mask, "is_auto_renew"].fillna(1).values == 0,
+                    rng.uniform(0.7, 1.0, missing_mask.sum()),
+                    rng.uniform(0.0, 0.6, missing_mask.sum()),
+                )
+            else:
+                df.loc[missing_mask, "churn_prob"] = rng.uniform(0.0, 1.0, missing_mask.sum())
+
+        # risk_grade fallback
+        if "risk_grade" not in df.columns:
+            df["risk_grade"] = df["churn_prob"].apply(
+                lambda x: "위험도 높음" if x >= HIGH_RISK_THRESHOLD else "위험도 중간"
+            )
+        else:
+            generated_grade = df["churn_prob"].apply(
+                lambda x: "위험도 높음" if x >= HIGH_RISK_THRESHOLD else "위험도 중간"
+            )
+            df["risk_grade"] = df["risk_grade"].fillna(generated_grade)
+
+        # main_reason_code fallback
+        if "main_reason_code" not in df.columns:
+            df["main_reason_code"] = df.apply(determine_reason, axis=1)
+        else:
+            fallback_reason = df.apply(determine_reason, axis=1)
+            df["main_reason_code"] = df["main_reason_code"].fillna(fallback_reason)
+
+        return df
+
+    # 2) churn_prob가 없으면 fallback 생성
+    if "churn_prob" not in df.columns:
+        rng = np.random.default_rng(42)
+
+        if "is_churn" in df.columns:
+            df["churn_prob"] = df["is_churn"].apply(
+                lambda x: rng.uniform(0.85, 1.0) if x == 1 else rng.uniform(0.0, 0.4)
+            )
+        elif "is_auto_renew" in df.columns:
+            df["churn_prob"] = np.where(
+                df["is_auto_renew"].fillna(1).values == 0,
+                rng.uniform(0.7, 1.0, len(df)),
+                rng.uniform(0.0, 0.6, len(df)),
+            )
+        else:
+            df["churn_prob"] = rng.uniform(0.0, 1.0, len(df))
+
+    # risk_grade 보강
+    if "risk_grade" not in df.columns:
+        df["risk_grade"] = df["churn_prob"].apply(
+            lambda x: "위험도 높음" if x >= HIGH_RISK_THRESHOLD else "위험도 중간"
+        )
+    else:
+        generated_grade = df["churn_prob"].apply(
+            lambda x: "위험도 높음" if x >= HIGH_RISK_THRESHOLD else "위험도 중간"
+        )
+        df["risk_grade"] = df["risk_grade"].fillna(generated_grade)
+
+    # main_reason_code 보강
+    if "main_reason_code" not in df.columns:
+        df["main_reason_code"] = df.apply(determine_reason, axis=1)
+    else:
+        fallback_reason = df.apply(determine_reason, axis=1)
+        df["main_reason_code"] = df["main_reason_code"].fillna(fallback_reason)
 
     return df

@@ -129,13 +129,25 @@ with chart_col:
 
 with pie_col:
     st.write("### 🔍 이탈 주원인 분석")
-    # TODO: SHAP 변수 중요도 또는 룰베이스 집계 결과로 교체 (config.CHURN_REASONS 수정)
-    reason_df = (
-        pd.DataFrame(CHURN_REASONS.items(), columns=["원인", "비중"])
-    )
+
+    if "main_reason_code" in transactions.columns:
+        reason_df = (
+            transactions["main_reason_code"]
+            .fillna("기타")
+            .astype(str)
+            .value_counts()
+            .reset_index()
+        )
+        reason_df.columns = ["원인", "건수"]
+    else:
+        reason_df = pd.DataFrame({
+            "원인": ["원인 데이터 없음"],
+            "건수": [1]
+        })
+
     fig_donut = px.pie(
         reason_df,
-        values="비중",
+        values="건수",
         names="원인",
         hole=0.4,
         color_discrete_sequence=px.colors.qualitative.Pastel,
@@ -151,13 +163,18 @@ st.divider()
 
 # ── 운영 요약 ─────────────────────────────────────────────────────────────────
 st.write("### 🔔 모니터링 요약")
+if "main_reason_code" in transactions.columns and transactions["main_reason_code"].notna().any():
+    top_reason = transactions["main_reason_code"].fillna("기타").mode().iloc[0]
+else:
+    top_reason = "원인 데이터 없음"
+
 st.info(f"""
 **{virtual_today.strftime('%Y-%m-%d')} 기준 운영 현황**
 
 - 감지된 고위험 유저: **{report.today.high_risk_users:,}명** \
-  (전일 대비 {report.user_delta:+,}명)
+    (전일 대비 {report.user_delta:+,}명)
 - 이탈 방어 성공률: **{report.today.defense_rate:.1f}%** \
-  (전일 대비 {report.defense_rate_delta:+.1f}%p)
-- 주요 알림: 고위험 유저 중 **{max(CHURN_REASONS, key=CHURN_REASONS.get)}** 비중이 가장 높습니다. \
-  맞춤형 할인 쿠폰 발송을 권장합니다.
+    (전일 대비 {report.defense_rate_delta:+.1f}%p)
+- 주요 알림: 고위험 유저 중 **{top_reason}** 비중이 가장 높습니다. \
+    맞춤형 할인 쿠폰 발송을 권장합니다.
 """)

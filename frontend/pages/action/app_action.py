@@ -7,7 +7,8 @@ from pages.action.config import (
     PLUS_PRICE_THRESHOLD, RISK_GRADES, VVIP_ACTION_TEXT, 
     GENERAL_ACTION_TEXT, VVIP_SUCCESS_MSG, GENERAL_SUCCESS_MSG
 )
-from pages.action.data_layer import get_real_action_data, apply_filters, segment_by_plus_price, debug_action_board
+from pages.action_board.config import CHURN_REASONS
+from pages.action.data_layer import get_real_action_data, apply_filters, segment_by_plus_price
 
 # ── 세션 상태 초기화 ──
 if "vvip_selected" not in st.session_state:
@@ -41,11 +42,24 @@ if target_df.empty:
 # ==========================================
 st.write("### ⚙️ 공통 필터")
 f_col1, f_col2 = st.columns(2)
+
 with f_col1:
-    selected_grades = st.multiselect("위험 등급", options=RISK_GRADES, default=RISK_GRADES)
+    selected_grades = st.multiselect(
+        "위험 등급",
+        options=RISK_GRADES,
+        default=RISK_GRADES,
+        key="selected_grades_filter"
+    )
+
 with f_col2:
-    all_reasons = sorted(target_df['main_reason_code'].unique())
-    selected_reasons = st.multiselect("이탈 원인", options=all_reasons, default=all_reasons)
+    all_reasons = list(CHURN_REASONS.keys())
+
+    selected_reasons = st.multiselect(
+        "이탈 원인",
+        options=all_reasons,
+        default=all_reasons,
+        key="selected_reasons_filter"
+    )
 
 filtered_df = apply_filters(target_df, selected_grades, selected_reasons)
 
@@ -74,7 +88,10 @@ with tab_vvip:
         vvip_display['user_id'] = vvip_display['user_id'].apply(lambda x: x[:10] + ".." if isinstance(x, str) else x)
         
         vvip_edit = st.data_editor(
-            vvip_display, hide_index=True, key="editor_vvip", use_container_width=True,
+            vvip_display,
+            hide_index=True,
+            key="editor_vvip",
+            width="stretch",
             column_config={
                 "churn_probability": st.column_config.ProgressColumn("이탈 확률", format="%.2f", min_value=0, max_value=1),
                 "plus_price": st.column_config.NumberColumn("기대 추가 수익", format="₩%d"),
@@ -109,7 +126,10 @@ with tab_general:
         gen_display['user_id'] = gen_display['user_id'].apply(lambda x: x[:10] + ".." if isinstance(x, str) else x)
         
         gen_edit = st.data_editor(
-            gen_display, hide_index=True, key="editor_gen", use_container_width=True,
+            gen_display,
+            hide_index=True,
+            key="editor_gen",
+            width="stretch",
             column_config={
                 "churn_probability": st.column_config.ProgressColumn("이탈 확률", format="%.2f", min_value=0, max_value=1),
                 "plus_price": st.column_config.NumberColumn("기대 추가수익", format="₩%d"),
@@ -126,3 +146,4 @@ with tab_general:
                 st.success(GENERAL_SUCCESS_MSG.format(len(g_sel)))
     else:
         st.info("조건에 맞는 일반 고객이 없습니다.")
+    
