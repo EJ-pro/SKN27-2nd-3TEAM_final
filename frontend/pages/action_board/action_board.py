@@ -61,7 +61,7 @@ with st.sidebar:
     virtual_today_val = st.date_input(
         "📅 분석 기준일 (Virtual Today)",
         value=datetime.now().date(),
-        min_value=datetime(2020, 1, 1).date(),
+        min_value=datetime(2010, 1, 1).date(),
         max_value=datetime(2030, 12, 31).date(),
     )
     virtual_today = datetime.combine(virtual_today_val, datetime.min.time())
