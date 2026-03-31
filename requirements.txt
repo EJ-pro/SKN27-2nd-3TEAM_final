@@ -3,3 +3,6 @@ pandas
 numpy
 pyarrow
 plotly
+xgboost
+polars
+scikit-learn
