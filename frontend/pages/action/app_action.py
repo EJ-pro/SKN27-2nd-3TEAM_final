@@ -7,6 +7,7 @@ from pages.action.config import (
     PLUS_PRICE_THRESHOLD, RISK_GRADES, VVIP_ACTION_TEXT, 
     GENERAL_ACTION_TEXT, VVIP_SUCCESS_MSG, GENERAL_SUCCESS_MSG
 )
+from pages.action_board.config import CHURN_REASONS
 from pages.action.data_layer import get_real_action_data, apply_filters, segment_by_plus_price
 
 # ── 세션 상태 초기화 ──
@@ -25,10 +26,12 @@ st.caption("고객 가치에 따라 그룹을 나누어 맞춤형 마케팅 액�
 with st.sidebar:
     st.write("### 📅 시뮬레이션 설정")
     virtual_today_val = st.date_input("분석 기준일", value=datetime.now().date())
-    virtual_today = datetime.combine(virtual_today_val, datetime.min.time())
+    #virtual_today = datetime.combine(virtual_today_val, datetime.min.time())
+    virtual_today = pd.to_datetime(virtual_today_val)
 
 with st.spinner("📦 데이터 분석 중..."):
     target_df = get_real_action_data(virtual_today)
+    #debug_action_board(virtual_today)
 
 if target_df.empty:
     st.warning("분석일 기준 만료 예정인 고위험 유저가 없습니다.")
@@ -39,11 +42,24 @@ if target_df.empty:
 # ==========================================
 st.write("### ⚙️ 공통 필터")
 f_col1, f_col2 = st.columns(2)
+
 with f_col1:
-    selected_grades = st.multiselect("위험 등급", options=RISK_GRADES, default=RISK_GRADES)
+    selected_grades = st.multiselect(
+        "위험 등급",
+        options=RISK_GRADES,
+        default=RISK_GRADES,
+        key="selected_grades_filter"
+    )
+
 with f_col2:
-    all_reasons = sorted(target_df['main_reason_code'].unique())
-    selected_reasons = st.multiselect("이탈 원인", options=all_reasons, default=all_reasons)
+    all_reasons = list(CHURN_REASONS.keys())
+
+    selected_reasons = st.multiselect(
+        "이탈 원인",
+        options=all_reasons,
+        default=all_reasons,
+        key="selected_reasons_filter"
+    )
 
 filtered_df = apply_filters(target_df, selected_grades, selected_reasons)
 
@@ -72,7 +88,10 @@ with tab_vvip:
         vvip_display['user_id'] = vvip_display['user_id'].apply(lambda x: x[:10] + ".." if isinstance(x, str) else x)
         
         vvip_edit = st.data_editor(
-            vvip_display, hide_index=True, key="editor_vvip", use_container_width=True,
+            vvip_display,
+            hide_index=True,
+            key="editor_vvip",
+            width="stretch",
             column_config={
                 "churn_probability": st.column_config.ProgressColumn("이탈 확률", format="%.2f", min_value=0, max_value=1),
                 "plus_price": st.column_config.NumberColumn("기대 추가 수익", format="₩%d"),
@@ -107,7 +126,10 @@ with tab_general:
         gen_display['user_id'] = gen_display['user_id'].apply(lambda x: x[:10] + ".." if isinstance(x, str) else x)
         
         gen_edit = st.data_editor(
-            gen_display, hide_index=True, key="editor_gen", use_container_width=True,
+            gen_display,
+            hide_index=True,
+            key="editor_gen",
+            width="stretch",
             column_config={
                 "churn_probability": st.column_config.ProgressColumn("이탈 확률", format="%.2f", min_value=0, max_value=1),
                 "plus_price": st.column_config.NumberColumn("기대 추가수익", format="₩%d"),
@@ -124,3 +146,4 @@ with tab_general:
                 st.success(GENERAL_SUCCESS_MSG.format(len(g_sel)))
     else:
         st.info("조건에 맞는 일반 고객이 없습니다.")
+    

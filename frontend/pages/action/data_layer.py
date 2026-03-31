@@ -4,13 +4,13 @@ from datetime import datetime, timedelta
 import streamlit as st
 
 # [중요] 기존 액션 보드 모듈에서 데이터 처리 및 설정 재사용
-from pages.action_board.config import HIGH_RISK_THRESHOLD, TWD_TO_KRW, EXPIRY_WINDOW_DAYS
+from pages.action_board.config import HIGH_RISK_THRESHOLD, TWD_TO_KRW, EXPIRY_WINDOW_DAYS, CHURN_REASONS
 from pages.action_board.data_layer import load_raw_data, inject_churn_probability
 
 @st.cache_data
 def get_real_action_data(virtual_today):
     """
-    실제 CSV 데이터를 로드하여 액션 보드 전용 고도화 데이터를 가공합니다.
+    실제 DB 데이터를 로드하여 액션 보드 전용 고도화 데이터를 가공합니다.
     """
     raw_result = load_raw_data()
     if not raw_result or "transactions" not in raw_result:
@@ -22,11 +22,32 @@ def get_real_action_data(virtual_today):
     # ── 1. 이탈 확률 연동 ──
     # ML 모델이 추론한 실시간 이탈 위험률을 주입합니다.
     prob_df = inject_churn_probability(trans_df)
+
+    # ── 1-1. virtual_today 보정 ──
+    # Streamlit date_input 등에서 들어오는 날짜를 pandas datetime으로 통일합니다.
+    virtual_today = pd.to_datetime(virtual_today, errors="coerce")
+
+    # membership_expire_date 유효값만 추출
+    valid_dates = prob_df["membership_expire_date"].dropna()
+
+    # 날짜 데이터가 전혀 없으면 화면에 표시할 수 없으므로 빈 DataFrame 반환
+    if valid_dates.empty:
+        return pd.DataFrame()
+
+    min_date = valid_dates.min()
+    max_date = valid_dates.max()
+
+    # 선택 날짜가 비정상이거나 데이터 범위를 벗어나면 자동 보정
+    if pd.isna(virtual_today) or virtual_today < min_date or virtual_today > max_date:
+        virtual_today = max_date - pd.Timedelta(days=3)
     
     # ── 2. 시점 기반 타겟 필터링 ──
     # 분석 기준일(Virtual Today)로부터 만료가 임박한 고객(3일 이내)만 선별합니다.
     window_end = virtual_today + timedelta(days=EXPIRY_WINDOW_DAYS)
-    mask_date = (prob_df["membership_expire_date"] >= virtual_today) & (prob_df["membership_expire_date"] <= window_end)
+    mask_date = (
+        (prob_df["membership_expire_date"] >= virtual_today) &
+        (prob_df["membership_expire_date"] <= window_end)
+    )
     
     # 이탈 확률 0.5 이상의 '위험군' 고객만 액션 대상으로 분류
     candidates = prob_df[mask_date & (prob_df["churn_prob"] >= 0.5)].copy()
@@ -39,9 +60,11 @@ def get_real_action_data(virtual_today):
     
     # ── 4. 이탈 주원인 추론 (Heuristic) ──
     def determine_reason(row):
-        if row.get("is_cancel") == 1: return "멤버십 직접해지"
-        if row.get("is_auto_renew") == 0: return "자동결제 미등록"
-        return "활동성 저하(추정)"
+        if row.get("is_cancel") == 1:
+            return "자동결제 해지"
+        if row.get("is_auto_renew") == 0:
+            return "자동결제 해지"
+        return "기타"
     
     candidates["main_reason_code"] = candidates.apply(determine_reason, axis=1)
     
@@ -52,7 +75,12 @@ def get_real_action_data(virtual_today):
     
     # 가입 기간 계산 (Longevity Bonus 적용용)
     if not members_df.empty and "msno" in members_df.columns:
-        candidates = pd.merge(candidates, members_df[["msno", "registration_init_time"]], on="msno", how="left")
+        candidates = pd.merge(
+            candidates,
+            members_df[["msno", "registration_init_time"]],
+            on="msno",
+            how="left"
+        )
         candidates["reg_date"] = pd.to_datetime(candidates["registration_init_time"], errors="coerce")
         candidates["long_years"] = (virtual_today - candidates["reg_date"]).dt.days / 365
         candidates["long_years"] = candidates["long_years"].fillna(1)
@@ -79,6 +107,7 @@ def get_real_action_data(virtual_today):
     })
     
     return final_df
+
 
 def apply_filters(df, selected_grades, selected_reasons):
     """

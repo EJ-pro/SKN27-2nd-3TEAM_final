@@ -9,7 +9,8 @@ from pages.simulator.config import (
     DEFAULT_A_TARGET_COUNT, FILTER_OPTIONS_B
 )
 from pages.simulator.data_layer import (
-    get_real_sim_data, calculate_retention_rates, calculate_roi_data
+    get_real_sim_data, calculate_retention_rates, calculate_roi_data,
+    get_simulator_default_date
 )
 from pages.action_board.config import TWD_TO_KRW
 
@@ -17,20 +18,22 @@ from pages.action_board.config import TWD_TO_KRW
 st.title("📈 마케팅 성과 시뮬레이터")
 st.caption("실제 고객 데이터를 기반으로 캠페인 전략별 예상 이탈 방어율을 비교 분석합니다.")
 
+
 # ==========================================
 # 0. 사이드바 및 데이터 로드
 # ==========================================
 with st.sidebar:
     st.write("### 📅 시뮬레이션 설정")
-    virtual_today_val = st.date_input("분석 기준일 (Virtual Today)", value=datetime.now().date())
-    virtual_today = datetime.combine(virtual_today_val, datetime.min.time())
+    default_date = get_simulator_default_date()
+
+    virtual_today = datetime.combine(default_date, datetime.min.time())
 
 with st.spinner("📦 실제 고객 데이터 분석 중..."):
     sim_df = get_real_sim_data(virtual_today)
 
-if sim_df.empty:
-    st.warning("분석 기준일 기준, 시뮬레이션을 진행할 타겟 유저가 부족합니다. 다른 날짜를 선택해 주세요.")
-    st.stop()
+    if sim_df.empty:
+        st.error("데이터 분석 실패: 조건에 맞는 고객을 찾을 수 없습니다.")
+        st.stop()
 
 # ==========================================
 # 1. 상단: 캠페인 그룹 설정
@@ -85,7 +88,7 @@ with config_col3:
 # 2. 중단: 시뮬레이션 결과 차트
 # ==========================================
 st.divider()
-st.write(f"### 📊 성과 예측 (분석일: {virtual_today_val})")
+st.write(f"### 📊 성과 예측 (분석일: {virtual_today})")
 chart_col1, chart_col2, chart_col3 = st.columns([1, 1, 2])
 
 def create_donut(rate, title, color):
@@ -132,3 +135,4 @@ else:
     st.info(f"🔵 **결론**: Group A(할인)는 초기 매출 감소가 크지만, **B그룹(무료 연장)이 첫 달 매출 공백을 감수하더라도 고객 유지 효과로 3개월 누적 수익 약 {diff_rev:,.0f}원만큼 더 유리해집니다.**")
 
 st.caption(f"※ 본 시뮬레이션은 실제 고객 {total_pool_size}명을 기반으로 계산되었으며, 환율 1 TWD = {TWD_TO_KRW}원이 적용되었습니다.")
+

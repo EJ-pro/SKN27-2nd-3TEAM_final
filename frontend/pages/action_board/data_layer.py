@@ -1,166 +1,399 @@
 """
-data_layer.py — 데이터 로딩 및 전처리 전담 모듈.
-
-책임:
-  - CSV 파일 읽기 및 날짜 타입 변환
-  - 시간 시프트(Time Shifting) 적용
-  - 파일 부재 시 UI 테스트용 더미 데이터 생성
-  - 이탈 확률 컬럼 주입 (모델 미연동 시 더미, 연동 시 실제 추론)
-
-이 모듈은 UI 로직을 알지 못합니다. streamlit을 import하지 않습니다.
+data_layer.py
+- Streamlit 프론트에서 MySQL(churn_db)에 직접 연결
+- members / transactions / user_logs / churn_predictions 조회
+- 화면에서 바로 쓸 수 있게 DataFrame 가공
 """
+
 from __future__ import annotations
 
+import os
 import numpy as np
 import pandas as pd
-from datetime import datetime, timedelta
+import streamlit as st
+from sqlalchemy import create_engine, text
 
-from pages.action_board.config import DATA_DIR, FILES, TIME_OFFSET_DAYS, SCALE_FACTOR
+from pages.action_board.config import HIGH_RISK_THRESHOLD
 
 
-# ── 내부 헬퍼 ─────────────────────────────────────────────────────────────────
+# ── DB 연결 ───────────────────────────────────────────────────────────────
+# 빠르게 진행하려고 기본값도 넣어둠
+DB_USER = os.getenv("DB_USER", "root")
+DB_PASSWORD = os.getenv("DB_PASSWORD", "root1234")
+DB_HOST = os.getenv("DB_HOST", "127.0.0.1")
+DB_PORT = os.getenv("DB_PORT", "3307")
+DB_NAME = os.getenv("DB_NAME", "churn_db")
 
-def _shift_date_columns(df: pd.DataFrame, offset: timedelta) -> pd.DataFrame:
-    """날짜 관련 컬럼을 일괄적으로 offset만큼 시프트합니다."""
-    # 공백 제거 (KeyError 방지)
+DB_URL = (
+    f"mysql+pymysql://{DB_USER}:{DB_PASSWORD}"
+    f"@{DB_HOST}:{DB_PORT}/{DB_NAME}?charset=utf8mb4"
+)
+
+engine = create_engine(
+    DB_URL,
+    pool_pre_ping=True,
+    pool_recycle=3600,
+)
+
+
+# ── 내부 헬퍼 ─────────────────────────────────────────────────────────────
+def _parse_date_columns(df: pd.DataFrame) -> pd.DataFrame:
+    if df.empty:
+        return df
+
+    df = df.copy()
     df.columns = df.columns.str.strip()
-    date_cols = [c for c in df.columns if "date" in c or "time" in c]
+
+    date_cols = [c for c in df.columns if ("date" in c.lower()) or ("time" in c.lower())]
+
     for col in date_cols:
-        df[col] = pd.to_datetime(df[col], format="%Y%m%d", errors="coerce").fillna(
-            pd.to_datetime(df[col], errors="coerce")
-        ) + offset
+        s = df[col].copy()
+
+        # 1) 문자열로 통일
+        s = s.astype(str).str.strip()
+
+        # 2) 자주 나오는 비정상값 제거
+        s = s.replace({
+            "nan": None,
+            "None": None,
+            "NaT": None,
+            "": None,
+            "0": None,
+            "00000000": None,
+        })
+
+        # 3) 20170131.0 같은 값 처리
+        s = s.str.replace(r"\.0$", "", regex=True)
+
+        # 4) YYYYMMDD 우선 파싱
+        parsed = pd.to_datetime(s, format="%Y%m%d", errors="coerce")
+
+        # 5) 그래도 실패한 건 일반 파싱 재시도
+        fallback = pd.to_datetime(s, errors="coerce")
+
+        df[col] = parsed.fillna(fallback)
+
     return df
 
-
-def _make_dummy_members(today: datetime, n: int = 100) -> pd.DataFrame:
-    rng = np.random.default_rng(42)
-    return pd.DataFrame({
-        "msno": [f"user_{i}" for i in range(n)],
-        "registration_init_time": [
-            today - timedelta(days=int(d))
-            for d in rng.integers(30, 1000, n)
-        ],
-    })
+print("DB_URL =", DB_URL)
+def _read_table(table_name: str) -> pd.DataFrame:
+    with engine.connect() as conn:
+        df = pd.read_sql(text(f"SELECT * FROM {table_name}"), conn)
+    return _parse_date_columns(df)
 
 
-def _make_dummy_transactions(today: datetime, n: int = 100) -> pd.DataFrame:
-    rng = np.random.default_rng(42)
-    return pd.DataFrame({
-        "msno":                  [f"user_{i}" for i in range(n)],
-        "membership_expire_date": [today + timedelta(days=int(d)) for d in rng.integers(-5, 10, n)],
-        "plan_list_price":        [149] * n,
-        "is_auto_renew":          rng.choice([0, 1], n, p=[0.3, 0.7]),
-        "transaction_date":       [today - timedelta(days=int(d)) for d in rng.integers(1, 30, n)],
-    })
-
-
-def _make_dummy_user_logs(today: datetime, n: int = 100) -> pd.DataFrame:
-    rng = np.random.default_rng(42)
-    return pd.DataFrame({
-        "msno":   [f"user_{i}" for i in range(n)],
-        "num_25": rng.integers(0, 50, n),
-        "date":   [today - timedelta(days=1)] * n,
-    })
-
-
-# ── 공개 인터페이스 ───────────────────────────────────────────────────────────
-
+# ── 공개 함수 ─────────────────────────────────────────────────────────────
+@st.cache_data
 def load_raw_data() -> dict[str, pd.DataFrame]:
-    """
-    CSV 파일을 읽고 날짜를 시프트하여 반환합니다.
-    파일이 없으면 더미 데이터로 대체하며, 콘솔에 경고를 출력합니다.
-    """
-    today = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
-    offset = timedelta(days=TIME_OFFSET_DAYS)
-    dummy_factories = {
-        "members":      _make_dummy_members,
-        "transactions": _make_dummy_transactions,
-        "user_logs":    _make_dummy_user_logs,
+    members = _read_table("members")
+    transactions = _read_table("transactions")
+    user_logs = _read_table("user_logs")
+
+    # churn_predictions 는 있을 수도 있고 없을 수도 있게 처리
+    try:
+        predictions = _read_table("churn_predictions")
+    except Exception:
+        predictions = pd.DataFrame()
+    print("members:", members.shape)
+    print("transactions:", transactions.shape)
+    print("user_logs:", user_logs.shape)
+    print("predictions:", predictions.shape)
+
+
+    # 1) members.is_churn 병합
+    if not members.empty and not transactions.empty:
+        if "msno" in members.columns and "msno" in transactions.columns:
+            if "is_churn" in members.columns and "is_churn" not in transactions.columns:
+                transactions = pd.merge(
+                    transactions,
+                    members[["msno", "is_churn"]],
+                    on="msno",
+                    how="left"
+                )
+                transactions["is_churn"] = transactions["is_churn"].fillna(0)
+
+    # 2) user_logs 요약 병합
+    # 주의: 현재 스키마엔 user_logs 날짜 컬럼이 없음
+    if not user_logs.empty and not transactions.empty:
+        if "msno" in user_logs.columns and "msno" in transactions.columns:
+            agg_dict = {}
+            for col in ["num_25", "num_50", "num_75", "num_985", "num_100", "num_unq", "total_secs"]:
+                if col in user_logs.columns:
+                    agg_dict[col] = "sum"
+
+            if agg_dict:
+                log_summary = user_logs.groupby("msno", as_index=False).agg(agg_dict)
+
+                rename_map = {}
+                if "num_25" in log_summary.columns:
+                    rename_map["num_25"] = "total_25"
+                if "num_50" in log_summary.columns:
+                    rename_map["num_50"] = "total_50"
+                if "num_75" in log_summary.columns:
+                    rename_map["num_75"] = "total_75"
+                if "num_985" in log_summary.columns:
+                    rename_map["num_985"] = "total_985"
+                if "num_100" in log_summary.columns:
+                    rename_map["num_100"] = "total_100"
+                if "num_unq" in log_summary.columns:
+                    rename_map["num_unq"] = "total_unq"
+                if "total_secs" in log_summary.columns:
+                    rename_map["total_secs"] = "sum_total_secs"
+
+                log_summary = log_summary.rename(columns=rename_map)
+
+                transactions = pd.merge(
+                    transactions,
+                    log_summary,
+                    on="msno",
+                    how="left"
+                )
+
+    return {
+        "members": members,
+        "transactions": transactions,
+        "user_logs": user_logs,
+        "predictions": predictions,
     }
-    result: dict[str, pd.DataFrame] = {}
-
-    for key, fname in FILES.items():
-        path = f"{DATA_DIR}{fname}"
-        try:
-            df = pd.read_csv(path)
-            df = _shift_date_columns(df, offset)
-            result[key] = df
-        except FileNotFoundError:
-            print(f"[WARN] {path} 없음 → 더미 데이터로 대체")
-            result[key] = dummy_factories[key](today)
 
 
-    # [Ground Truth 연동] members의 is_churn 정보를 transactions에 병합
-    if "transactions" in result and "members" in result:
-        mems = result["members"]
-        trans = result["transactions"]
-        if "is_churn" in mems.columns:
-            trans = pd.merge(trans, mems[["msno", "is_churn"]], on="msno", how="left")
-            trans["is_churn"] = trans["is_churn"].fillna(0)
-            result["transactions"] = trans
+def _inject_churn_probability(
+    transactions: pd.DataFrame,
+    model=None,
+) -> pd.DataFrame:
+    """
+    우선순위
+    1. churn_predictions 테이블 값 사용
+    2. transactions에 이미 churn_prob 있으면 사용
+    3. is_churn 기반 더미
+    4. is_auto_renew 기반 더미
+    """
+    df = transactions.copy()
+    if df.empty:
+        return df
 
-    # [로그 데이터 요약 연동] user_logs에서 유저 활동성 추출
-    if "transactions" in result and "user_logs" in result:
-        logs = result["user_logs"]
-        trans = result["transactions"]
-        
-        # 유저별 최신 접속일 및 활동량 합계
-        log_summary = logs.groupby("msno").agg({
-            "date": "max",
-            "num_25": "sum",
-            "num_100": "sum"
-        }).reset_index()
-        log_summary.columns = ["msno", "last_activity_date", "total_25", "total_100"]
-        
-        trans = pd.merge(trans, log_summary, on="msno", how="left")
-        result["transactions"] = trans
+    raw = load_raw_data()
+    predictions = raw.get("predictions", pd.DataFrame())
 
-    return result
+    # 1) churn_predictions 우선
+    if not predictions.empty and "msno" in predictions.columns:
+        pred_df = predictions.copy()
 
+        # prediction_date가 있으면 최신 예측만 사용
+        if "prediction_date" in pred_df.columns:
+            pred_df = pred_df.sort_values("prediction_date").drop_duplicates("msno", keep="last")
+
+        keep_cols = ["msno"]
+        if "churn_probability" in pred_df.columns:
+            keep_cols.append("churn_probability")
+        if "risk_grade" in pred_df.columns:
+            keep_cols.append("risk_grade")
+        if "main_reason_code" in pred_df.columns:
+            keep_cols.append("main_reason_code")
+
+        pred_df = pred_df[keep_cols]
+
+        df = pd.merge(df, pred_df, on="msno", how="left")
+
+        if "churn_probability" in df.columns:
+            df["churn_prob"] = df["churn_probability"]
+
+        if "churn_prob" in df.columns and df["churn_prob"].notna().any():
+            # 예측 없는 행만 fallback
+            missing_mask = df["churn_prob"].isna()
+
+            if missing_mask.any():
+                rng = np.random.default_rng(42)
+                if "is_churn" in df.columns:
+                    df.loc[missing_mask, "churn_prob"] = df.loc[missing_mask, "is_churn"].apply(
+                        lambda x: rng.uniform(0.85, 1.0) if x == 1 else rng.uniform(0.0, 0.4)
+                    )
+                elif "is_auto_renew" in df.columns:
+                    df.loc[missing_mask, "churn_prob"] = np.where(
+                        df.loc[missing_mask, "is_auto_renew"].fillna(1).values == 0,
+                        rng.uniform(0.7, 1.0, missing_mask.sum()),
+                        rng.uniform(0.0, 0.6, missing_mask.sum()),
+                    )
+                else:
+                    df.loc[missing_mask, "churn_prob"] = rng.uniform(0.0, 1.0, missing_mask.sum())
+
+            # risk_grade 없으면 churn_prob로 생성
+            if "risk_grade" not in df.columns:
+                df["risk_grade"] = df["churn_prob"].apply(
+                    lambda x: "위험도 높음" if x >= HIGH_RISK_THRESHOLD else "위험도 중간"
+                )
+
+            # main_reason_code 없으면 간단 규칙으로 생성
+            if "main_reason_code" not in df.columns:
+                def determine_reason(row):
+                    if row.get("is_cancel") == 1:
+                        return "멤버십 직접해지"
+                    if row.get("is_auto_renew") == 0:
+                        return "자동결제 미등록"
+                    return "활동성 저하(추정)"
+                df["main_reason_code"] = df.apply(determine_reason, axis=1)
+
+            return df
+
+    # 2) 이미 churn_prob 있으면 그대로
+    if "churn_prob" in df.columns:
+        return df
+
+    # 3) fallback
+    rng = np.random.default_rng(42)
+
+    if "is_churn" in df.columns:
+        df["churn_prob"] = df["is_churn"].apply(
+            lambda x: rng.uniform(0.85, 1.0) if x == 1 else rng.uniform(0.0, 0.4)
+        )
+    elif "is_auto_renew" in df.columns:
+        df["churn_prob"] = np.where(
+            df["is_auto_renew"].fillna(1).values == 0,
+            rng.uniform(0.7, 1.0, len(df)),
+            rng.uniform(0.0, 0.6, len(df)),
+        )
+    else:
+        df["churn_prob"] = rng.uniform(0.0, 1.0, len(df))
+
+    if "risk_grade" not in df.columns:
+        df["risk_grade"] = df["churn_prob"].apply(
+            lambda x: "위험도 높음" if x >= HIGH_RISK_THRESHOLD else "위험도 중간"
+        )
+
+    if "main_reason_code" not in df.columns:
+        def determine_reason(row):
+            if row.get("is_cancel") == 1:
+                return "멤버십 직접해지"
+            if row.get("is_auto_renew") == 0:
+                return "자동결제 미등록"
+            return "활동성 저하(추정)"
+        df["main_reason_code"] = df.apply(determine_reason, axis=1)
+
+    return df
 
 def inject_churn_probability(
     transactions: pd.DataFrame,
     model=None,
 ) -> pd.DataFrame:
     """
-    transactions에 'churn_prob' 컬럼을 추가합니다.
+    우선순위
+    1. churn_predictions 테이블 값 사용
+    2. transactions에 이미 churn_prob 있으면 사용
+    3. is_churn 기반 더미
+    4. is_auto_renew 기반 더미
 
-    - model이 None이면 is_auto_renew 기반 더미 확률 사용 (현재 상태).
-    - model이 주입되면 predict_proba로 교체하세요.
-
-    Args:
-        transactions: 원본 트랜잭션 DataFrame
-        model: sklearn 호환 모델 (옵션). None이면 더미 로직 사용.
-
-    Returns:
-        'churn_prob' 컬럼이 추가된 DataFrame (원본 변경 없음).
+    + main_reason_code가 없거나 비어 있으면 fallback 원인 생성
     """
     df = transactions.copy()
-
-    if "churn_prob" in df.columns:
-        return df  # 이미 있으면 그대로
-
-    if model is not None:
-        # ── 실제 모델 연동 시 이 블록을 채우세요 ──────────────────────────
-        raise NotImplementedError("모델 피처 추출 로직을 여기에 구현하세요.")
-
-    # [Ground Truth 우선순위] is_churn 데이터가 있으면 확률을 맵핑
-    if "is_churn" in df.columns:
-        rng = np.random.default_rng(42)
-        df["churn_prob"] = df["is_churn"].apply(
-            lambda x: rng.uniform(0.85, 1.0) if x == 1 else rng.uniform(0.0, 0.4)
-        )
+    if df.empty:
         return df
 
-    # 더미: 자동결제 해지 여부로 고위험/저위험 구분
-    rng = np.random.default_rng(42)
-    n = len(df)
-    auto_renew = df["is_auto_renew"].values
+    raw = load_raw_data()
+    predictions = raw.get("predictions", pd.DataFrame())
 
-    probs = np.where(
-        auto_renew == 0,
-        rng.uniform(0.7, 1.0, n),   # 해지 → 고위험
-        rng.uniform(0.0, 0.6, n),   # 유지 → 저위험
-    )
-    df["churn_prob"] = probs
+    def determine_reason(row):
+        if row.get("is_cancel") == 1:
+            return "멤버십 직접해지"
+        if row.get("is_auto_renew") == 0:
+            return "자동결제 미등록"
+        return "활동성 저하(추정)"
+
+    # 1) churn_predictions 우선 사용
+    if not predictions.empty and "msno" in predictions.columns:
+        pred_df = predictions.copy()
+
+        if "prediction_date" in pred_df.columns:
+            pred_df = pred_df.sort_values("prediction_date").drop_duplicates("msno", keep="last")
+
+        keep_cols = ["msno"]
+        if "churn_probability" in pred_df.columns:
+            keep_cols.append("churn_probability")
+        if "risk_grade" in pred_df.columns:
+            keep_cols.append("risk_grade")
+        if "main_reason_code" in pred_df.columns:
+            keep_cols.append("main_reason_code")
+
+        pred_df = pred_df[keep_cols]
+        df = pd.merge(df, pred_df, on="msno", how="left")
+
+        # churn_probability -> churn_prob 통일
+        if "churn_probability" in df.columns:
+            df["churn_prob"] = df["churn_probability"]
+
+        # churn_prob fallback
+        if "churn_prob" not in df.columns:
+            df["churn_prob"] = np.nan
+
+        missing_mask = df["churn_prob"].isna()
+        if missing_mask.any():
+            rng = np.random.default_rng(42)
+
+            if "is_churn" in df.columns:
+                df.loc[missing_mask, "churn_prob"] = df.loc[missing_mask, "is_churn"].apply(
+                    lambda x: rng.uniform(0.85, 1.0) if x == 1 else rng.uniform(0.0, 0.4)
+                )
+            elif "is_auto_renew" in df.columns:
+                df.loc[missing_mask, "churn_prob"] = np.where(
+                    df.loc[missing_mask, "is_auto_renew"].fillna(1).values == 0,
+                    rng.uniform(0.7, 1.0, missing_mask.sum()),
+                    rng.uniform(0.0, 0.6, missing_mask.sum()),
+                )
+            else:
+                df.loc[missing_mask, "churn_prob"] = rng.uniform(0.0, 1.0, missing_mask.sum())
+
+        # risk_grade fallback
+        if "risk_grade" not in df.columns:
+            df["risk_grade"] = df["churn_prob"].apply(
+                lambda x: "위험도 높음" if x >= HIGH_RISK_THRESHOLD else "위험도 중간"
+            )
+        else:
+            generated_grade = df["churn_prob"].apply(
+                lambda x: "위험도 높음" if x >= HIGH_RISK_THRESHOLD else "위험도 중간"
+            )
+            df["risk_grade"] = df["risk_grade"].fillna(generated_grade)
+
+        # main_reason_code fallback
+        if "main_reason_code" not in df.columns:
+            df["main_reason_code"] = df.apply(determine_reason, axis=1)
+        else:
+            fallback_reason = df.apply(determine_reason, axis=1)
+            df["main_reason_code"] = df["main_reason_code"].fillna(fallback_reason)
+
+        return df
+
+    # 2) churn_prob가 없으면 fallback 생성
+    if "churn_prob" not in df.columns:
+        rng = np.random.default_rng(42)
+
+        if "is_churn" in df.columns:
+            df["churn_prob"] = df["is_churn"].apply(
+                lambda x: rng.uniform(0.85, 1.0) if x == 1 else rng.uniform(0.0, 0.4)
+            )
+        elif "is_auto_renew" in df.columns:
+            df["churn_prob"] = np.where(
+                df["is_auto_renew"].fillna(1).values == 0,
+                rng.uniform(0.7, 1.0, len(df)),
+                rng.uniform(0.0, 0.6, len(df)),
+            )
+        else:
+            df["churn_prob"] = rng.uniform(0.0, 1.0, len(df))
+
+    # risk_grade 보강
+    if "risk_grade" not in df.columns:
+        df["risk_grade"] = df["churn_prob"].apply(
+            lambda x: "위험도 높음" if x >= HIGH_RISK_THRESHOLD else "위험도 중간"
+        )
+    else:
+        generated_grade = df["churn_prob"].apply(
+            lambda x: "위험도 높음" if x >= HIGH_RISK_THRESHOLD else "위험도 중간"
+        )
+        df["risk_grade"] = df["risk_grade"].fillna(generated_grade)
+
+    # main_reason_code 보강
+    if "main_reason_code" not in df.columns:
+        df["main_reason_code"] = df.apply(determine_reason, axis=1)
+    else:
+        fallback_reason = df.apply(determine_reason, axis=1)
+        df["main_reason_code"] = df["main_reason_code"].fillna(fallback_reason)
+
     return df
