@@ -12,28 +12,167 @@ from pages.action_board.metrics import build_kpi_report, build_trend_data, build
 
 # ── 페이지 설정 ───────────────────────────────────────────────────────────────
 st.set_page_config(
-    page_title="메인 현황판",
+    page_title="메인 현황판 🌸",
     layout="wide",
     initial_sidebar_state="expanded",
 )
 
+# ── 벚꽃 + 초록 봄 테마 CSS ──────────────────────────────────────────────────
 st.markdown("""
 <style>
-.main { background-color: #f5f7f9; }
-.stMetric {
-    background-color: #ffffff;
-    padding: 20px;
-    border-radius: 10px;
-    box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700&display=swap');
+
+:root {
+    --sakura-50:  #FFF0F5;
+    --sakura-100: #FFD6E7;
+    --sakura-200: #FFB3D1;
+    --sakura-400: #F472A8;
+    --sakura-600: #C94E80;
+    --sakura-800: #8B2255;
+    --green-50:   #F0FAF0;
+    --green-100:  #C8EDC0;
+    --green-200:  #97D47F;
+    --green-400:  #55A83A;
+    --green-600:  #2E7D1A;
+    --green-800:  #16500A;
+}
+
+html, body, [class*="css"] {
+    font-family: 'Noto Sans KR', sans-serif !important;
+}
+
+/* 전체 배경 */
+.stApp {
+    background: linear-gradient(135deg, #FFF8FB 0%, #F6FBF4 100%) !important;
+}
+
+/* 사이드바 */
+[data-testid="stSidebar"] {
+    background: var(--sakura-50) !important;
+    border-right: 1px solid var(--sakura-200) !important;
+}
+[data-testid="stSidebar"] * {
+    color: var(--sakura-800) !important;
+}
+[data-testid="stSidebar"] .stDateInput > div > div {
+    border-color: var(--sakura-200) !important;
+}
+
+/* 타이틀 */
+h1 {
+    font-size: 2rem !important;
+    color: var(--sakura-800) !important;
+    border-bottom: 3px solid;
+    border-image: linear-gradient(90deg, #FFB3D1, #F472A8, #55A83A, #97D47F) 1;
+    padding-bottom: 0.4rem;
+}
+
+/* 서브헤더 */
+h2 {
+    color: var(--green-800) !important;
+    font-size: 1.2rem !important;
+    font-weight: 600 !important;
+}
+
+/* h3 섹션 타이틀 */
+h3 {
+    color: var(--green-800) !important;
+    font-size: 1rem !important;
+    font-weight: 600 !important;
+}
+
+/* 구분선 */
+hr, [data-testid="stDivider"] {
+    border: none !important;
+    height: 2px !important;
+    background: linear-gradient(90deg, var(--sakura-200), var(--sakura-400), var(--green-400), var(--green-200)) !important;
+    margin: 0.75rem 0 1.25rem !important;
+    opacity: 1 !important;
+}
+
+/* KPI 메트릭 카드 */
+[data-testid="stMetric"] {
+    background: white !important;
+    border: 0.5px solid var(--sakura-100) !important;
+    border-radius: 14px !important;
+    padding: 1.1rem 1.25rem !important;
+    box-shadow: 0 2px 12px rgba(244, 114, 168, 0.07) !important;
+    transition: box-shadow 0.15s;
+}
+[data-testid="stMetric"]:hover {
+    box-shadow: 0 4px 18px rgba(244, 114, 168, 0.14) !important;
+}
+[data-testid="stMetric"] label {
+    color: var(--sakura-600) !important;
+    font-size: 0.82rem !important;
+    font-weight: 500 !important;
+}
+[data-testid="stMetric"] [data-testid="stMetricValue"] {
+    color: var(--sakura-800) !important;
+    font-size: 1.6rem !important;
+    font-weight: 700 !important;
+}
+[data-testid="stMetric"] [data-testid="stMetricDelta"] {
+    font-size: 0.8rem !important;
+    font-weight: 500 !important;
+}
+
+/* info 박스 */
+[data-testid="stAlert"][data-type="info"] {
+    background: var(--sakura-50) !important;
+    border-left: 4px solid var(--sakura-400) !important;
+    border-radius: 12px !important;
+    color: var(--sakura-800) !important;
+}
+[data-testid="stAlert"][data-type="info"] p,
+[data-testid="stAlert"][data-type="info"] li {
+    color: var(--sakura-800) !important;
+}
+
+/* success 박스 */
+[data-testid="stAlert"][data-type="success"] {
+    background: var(--green-50) !important;
+    border-left: 4px solid var(--green-400) !important;
+    border-radius: 12px !important;
+}
+[data-testid="stAlert"][data-type="success"] p {
+    color: var(--green-800) !important;
+}
+
+/* warning 박스 */
+[data-testid="stAlert"][data-type="warning"] {
+    border-radius: 12px !important;
+}
+
+/* Plotly 차트 컨테이너 */
+[data-testid="stPlotlyChart"] {
+    background: white !important;
+    border: 0.5px solid var(--sakura-100) !important;
+    border-radius: 14px !important;
+    padding: 0.5rem !important;
+    box-shadow: 0 2px 12px rgba(244, 114, 168, 0.05) !important;
+}
+
+/* 스피너 */
+[data-testid="stSpinner"] {
+    color: var(--sakura-400) !important;
+}
+
+/* date_input */
+[data-testid="stDateInput"] input {
+    border-color: var(--sakura-200) !important;
+    border-radius: 9px !important;
+    background: white !important;
+}
+[data-testid="stDateInput"] input:focus {
+    border-color: var(--sakura-400) !important;
+    box-shadow: 0 0 0 3px rgba(244, 114, 168, 0.15) !important;
 }
 </style>
 """, unsafe_allow_html=True)
 
 
 # ── 데이터 로드 (캐싱) ────────────────────────────────────────────────────────
-# @st.cache_resource  → 세션 간 공유가 필요한 무거운 객체 (ML 모델 등)
-# @st.cache_data      → 직렬화 가능한 데이터 (DataFrame 등)
-
 @st.cache_resource
 def get_model():
     """
@@ -57,24 +196,32 @@ transactions = get_transactions()
 
 # ── 사이드바 ──────────────────────────────────────────────────────────────────
 with st.sidebar:
-
+    st.markdown("### 📅 시뮬레이션 설정")
     virtual_today_val = st.date_input(
-        "📅 분석 기준일 (Virtual Today)",
+        "분석 기준일 (Virtual Today)",
         value=datetime.now().date(),
         min_value=datetime(2010, 1, 1).date(),
         max_value=datetime(2030, 12, 31).date(),
     )
     virtual_today = datetime.combine(virtual_today_val, datetime.min.time())
 
+    st.markdown("---")
+    st.markdown(
+        "<small style='color:#C94E80'>🌸 봄 시즌 리텐션 캠페인</small>",
+        unsafe_allow_html=True,
+    )
+
 
 # ── KPI 계산 ──────────────────────────────────────────────────────────────────
-report = build_kpi_report(transactions, virtual_today)
+report   = build_kpi_report(transactions, virtual_today)
 trend_df = build_trend_data(transactions, virtual_today)
 
 
 # ── 헤더 ──────────────────────────────────────────────────────────────────────
+st.markdown("🌸 &nbsp; **봄**", unsafe_allow_html=True)
 st.title("📊 이탈율 관리 시스템")
 st.subheader("이탈 방어 현황")
+st.markdown("<hr>", unsafe_allow_html=True)
 
 
 # ── KPI 카드 ──────────────────────────────────────────────────────────────────
@@ -85,7 +232,7 @@ with col1:
         "🚨 실시간 고위험 유저",
         f"{report.today.high_risk_users:,}명",
         f"{report.user_delta:+,}명",
-        delta_color="inverse",   # 늘어나면 빨간색 (나쁜 것)
+        delta_color="inverse",
     )
 
 with col2:
@@ -93,7 +240,7 @@ with col2:
         "💸 매출 위기 총액",
         f"₩{report.today.revenue_at_risk:,.0f}",
         f"₩{report.revenue_delta:+,.0f}",
-        delta_color="inverse",   # 늘어나면 빨간색 (나쁜 것)
+        delta_color="inverse",
     )
 
 with col3:
@@ -101,10 +248,10 @@ with col3:
         "🛡️ 이탈 방어 성공률",
         f"{report.today.defense_rate:.1f}%",
         f"{report.defense_rate_delta:+.1f}%p",
-        delta_color="normal",    # 늘어나면 초록색 (좋은 것)
+        delta_color="normal",
     )
 
-st.divider()
+st.markdown("<hr>", unsafe_allow_html=True)
 
 
 # ── 차트 ──────────────────────────────────────────────────────────────────────
@@ -116,7 +263,10 @@ with chart_col:
         trend_df,
         x="날짜",
         y=["고위험 유저", "방어 성공 유저"],
-        color_discrete_map={"고위험 유저": "#EF553B", "방어 성공 유저": "#00CC96"},
+        color_discrete_map={
+            "고위험 유저":   "#F472A8",   # 벚꽃 핑크
+            "방어 성공 유저": "#55A83A",  # 새싹 그린
+        },
         markers=True,
         template="plotly_white",
     )
@@ -124,7 +274,11 @@ with chart_col:
         height=350,
         margin=dict(l=10, r=10, t=30, b=10),
         legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
+        plot_bgcolor="white",
+        paper_bgcolor="white",
+        font=dict(family="Noto Sans KR", color="#8B2255"),
     )
+    fig_line.update_traces(line=dict(width=2.5), marker=dict(size=7))
     st.plotly_chart(fig_line, use_container_width=True)
 
 with pie_col:
@@ -142,7 +296,7 @@ with pie_col:
     else:
         reason_df = pd.DataFrame({
             "원인": ["원인 데이터 없음"],
-            "건수": [1]
+            "건수": [1],
         })
 
     fig_donut = px.pie(
@@ -150,19 +304,26 @@ with pie_col:
         values="건수",
         names="원인",
         hole=0.4,
-        color_discrete_sequence=px.colors.qualitative.Pastel,
+        # 벚꽃 핑크 ~ 초록 봄 컬러 팔레트
+        color_discrete_sequence=[
+            "#F472A8", "#55A83A", "#FFB3D1", "#97D47F",
+            "#C94E80", "#2E7D1A", "#FFD6E7", "#C8EDC0",
+        ],
     )
     fig_donut.update_layout(
         height=400,
         margin=dict(l=10, r=10, t=30, b=10),
+        paper_bgcolor="white",
+        font=dict(family="Noto Sans KR", color="#8B2255"),
     )
     st.plotly_chart(fig_donut, use_container_width=True)
 
-st.divider()
+st.markdown("<hr>", unsafe_allow_html=True)
 
 
 # ── 운영 요약 ─────────────────────────────────────────────────────────────────
 st.write("### 🔔 모니터링 요약")
+
 if "main_reason_code" in transactions.columns and transactions["main_reason_code"].notna().any():
     top_reason = transactions["main_reason_code"].fillna("기타").mode().iloc[0]
 else:
