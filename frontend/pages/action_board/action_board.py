@@ -6,13 +6,14 @@ import pandas as pd
 import plotly.express as px
 import streamlit as st
 
-from pages.action_board.config import CHURN_REASONS
-from pages.action_board.data_layer import inject_churn_probability, load_raw_data
-from pages.action_board.metrics import build_kpi_report, build_trend_data, build_churn_reasons
+from pages.action_board.config import SCALE_FACTOR, TWD_TO_KRW, REASON_GROUPS
+from pages.action_board.data_layer import inject_churn_probability, get_shifted_raw_data
+from pages.action_board.metrics import build_kpi_report, build_trend_data
+from pages.simulator.data_layer import get_simulator_default_date
 
 # ── 페이지 설정 ───────────────────────────────────────────────────────────────
 st.set_page_config(
-    page_title="메인 현황판 🌸",
+    page_title="📊 통합 대시보드 | KKBOX",
     layout="wide",
     initial_sidebar_state="expanded",
 )
@@ -166,7 +167,16 @@ hr, [data-testid="stDivider"] {
 }
 [data-testid="stDateInput"] input:focus {
     border-color: var(--sakura-400) !important;
-    box-shadow: 0 0 0 3px rgba(244, 114, 168, 0.15) !important;
+    box-shadow: 0 0 0 3px rgba(244,114,168,0.15) !important;
+}
+
+/* 상단 헤더 및 메뉴 숨기기 (배경과 일체화) */
+header[data-testid="stHeader"] {
+    background: transparent !important;
+}
+[data-testid="stDeploymentButton"], 
+[data-testid="stMainMenu"] {
+    visibility: hidden;
 }
 </style>
 """, unsafe_allow_html=True)
@@ -186,7 +196,7 @@ def get_model():
 
 @st.cache_data
 def get_transactions() -> "pd.DataFrame":
-    raw = load_raw_data()
+    raw = get_shifted_raw_data()
     model = get_model()
     return inject_churn_probability(raw["transactions"], model=model)
 
@@ -195,21 +205,21 @@ transactions = get_transactions()
 
 
 # ── 사이드바 ──────────────────────────────────────────────────────────────────
+if "virtual_today" not in st.session_state:
+    st.session_state.virtual_today = datetime.now().date()
+
 with st.sidebar:
     st.markdown("### 📅 시뮬레이션 설정")
-    virtual_today_val = st.date_input(
+    st.date_input(
         "분석 기준일 (Virtual Today)",
-        value=datetime.now().date(),
+        key="virtual_today",
         min_value=datetime(2010, 1, 1).date(),
         max_value=datetime(2030, 12, 31).date(),
     )
-    virtual_today = datetime.combine(virtual_today_val, datetime.min.time())
+    
+    virtual_today = datetime.combine(st.session_state.virtual_today, datetime.min.time())
 
     st.markdown("---")
-    st.markdown(
-        "<small style='color:#C94E80'>🌸 봄 시즌 리텐션 캠페인</small>",
-        unsafe_allow_html=True,
-    )
 
 
 # ── KPI 계산 ──────────────────────────────────────────────────────────────────
@@ -218,9 +228,8 @@ trend_df = build_trend_data(transactions, virtual_today)
 
 
 # ── 헤더 ──────────────────────────────────────────────────────────────────────
-st.markdown("🌸 &nbsp; **봄**", unsafe_allow_html=True)
-st.title("📊 이탈율 관리 시스템")
-st.subheader("이탈 방어 현황")
+st.title("🌸 KKBOX 이탈 방어 시스템")
+st.subheader("이탈 방어 실시간 모니터링")
 st.markdown("<hr>", unsafe_allow_html=True)
 
 
@@ -238,8 +247,8 @@ with col1:
 with col2:
     st.metric(
         "💸 매출 위기 총액",
-        f"₩{report.today.revenue_at_risk:,.0f}",
-        f"₩{report.revenue_delta:+,.0f}",
+        f"{report.today.revenue_at_risk:,.0f}원",
+        f"{report.revenue_delta:+,.0f}원",
         delta_color="inverse",
     )
 
@@ -285,38 +294,33 @@ with pie_col:
     st.write("### 🔍 이탈 주원인 분석")
 
     if "main_reason_code" in transactions.columns:
-        reason_df = (
-            transactions["main_reason_code"]
-            .fillna("기타")
-            .astype(str)
-            .value_counts()
-            .reset_index()
-        )
-        reason_df.columns = ["원인", "건수"]
-    else:
-        reason_df = pd.DataFrame({
-            "원인": ["원인 데이터 없음"],
-            "건수": [1],
-        })
+        # 세부 사유를 5대 카테고리로 매핑하여 그룹화 (차트 터짐 방지)
+        def map_to_group(reason):
+            for group, members in REASON_GROUPS.items():
+                if reason in members:
+                    return group
+            return "❓ 기타"
 
-    fig_donut = px.pie(
-        reason_df,
-        values="건수",
-        names="원인",
-        hole=0.4,
-        # 벚꽃 핑크 ~ 초록 봄 컬러 팔레트
-        color_discrete_sequence=[
-            "#F472A8", "#55A83A", "#FFB3D1", "#97D47F",
-            "#C94E80", "#2E7D1A", "#FFD6E7", "#C8EDC0",
-        ],
-    )
-    fig_donut.update_layout(
-        height=400,
-        margin=dict(l=10, r=10, t=30, b=10),
-        paper_bgcolor="white",
-        font=dict(family="Noto Sans KR", color="#8B2255"),
-    )
-    st.plotly_chart(fig_donut, use_container_width=True)
+        reason_series = transactions["main_reason_code"].fillna("기타/복합").astype(str)
+        grouped_counts = reason_series.apply(map_to_group).value_counts().reset_index()
+        grouped_counts.columns = ["이탈 카테고리", "유저 수"]
+
+        fig_donut = px.pie(
+            grouped_counts,
+            values="유저 수",
+            names="이탈 카테고리",
+            hole=0.4,
+            # 벚꽃 핑크 ~ 초록 봄 컬러 팔레트
+            color_discrete_sequence=px.colors.qualitative.Pastel,
+            template="plotly_white",
+        )
+        fig_donut.update_layout(
+            height=400,
+            margin=dict(l=10, r=10, t=30, b=10),
+            paper_bgcolor="white",
+            font=dict(family="Noto Sans KR", color="#8B2255"),
+        )
+        st.plotly_chart(fig_donut, use_container_width=True)
 
 st.markdown("<hr>", unsafe_allow_html=True)
 
@@ -330,12 +334,9 @@ else:
     top_reason = "원인 데이터 없음"
 
 st.info(f"""
-**{virtual_today.strftime('%Y-%m-%d')} 기준 운영 현황**
+⚖️ **{virtual_today.strftime('%Y-%m-%d')} 기준 운영 리포트**
 
-- 감지된 고위험 유저: **{report.today.high_risk_users:,}명** \
-    (전일 대비 {report.user_delta:+,}명)
-- 이탈 방어 성공률: **{report.today.defense_rate:.1f}%** \
-    (전일 대비 {report.defense_rate_delta:+.1f}%p)
-- 주요 알림: 고위험 유저 중 **{top_reason}** 비중이 가장 높습니다. \
-    맞춤형 할인 쿠폰 발송을 권장합니다.
+- **모니터링 대상**: 실시간 감지된 고위험 유저 **{report.today.high_risk_users:,}명** (전일 대비 {report.user_delta:+,}명)
+- **방어 성과**: AI 기반 이탈 방어 성공률 **{report.today.defense_rate:.1f}%** 기록 (전일 대비 {report.defense_rate_delta:+.1f}%p)
+- **핵심 인사이트**: 현재 고위험군 내에서 **『{top_reason}』** 비중이 가장 두드러집니다. 해당 유저층을 타겟으로 한 정밀 리텐션 액션(쿠폰/프로모션) 수행을 권장합니다.
 """)

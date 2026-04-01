@@ -1,13 +1,30 @@
 services:
+  seed:
+    build:
+      context: ..
+      dockerfile: backend/Dockerfile
+    container_name: churn_seed
+    depends_on:
+      - mysql
+    working_dir: /app
+    environment:
+      DB_USER: root
+      DB_PASSWORD: app1234
+      DB_HOST: mysql
+      DB_PORT: 3306
+      DB_NAME: churn_db
+      PYTHONPATH: /app
+    volumes:
+      - .:/app
+    command: python scripts/seed_data.py
   mysql:
     image: mysql:8.0
     container_name: churn_mysql
     restart: always
     environment:
-      MYSQL_ROOT_PASSWORD: root1234
+      MYSQL_ROOT_PASSWORD: app1234
       MYSQL_DATABASE: churn_db
-      MYSQL_USER: appuser
-      MYSQL_PASSWORD: app1234
+      TZ: Asia/Seoul
     ports:
       - "3307:3306"
     volumes:

@@ -71,7 +71,9 @@ def _parse_date_columns(df: pd.DataFrame) -> pd.DataFrame:
         # 5) 그래도 실패한 건 일반 파싱 재시도
         fallback = pd.to_datetime(s, errors="coerce")
 
-        df[col] = parsed.fillna(fallback)
+        # Ensure datetime type and shift by 3320 days to make 2017 data appear as 2026
+        dt_series = pd.to_datetime(parsed.fillna(fallback), errors='coerce')
+        df[col] = dt_series + pd.Timedelta(days=3320)
 
     return df
 
@@ -82,9 +84,11 @@ def _read_table(table_name: str) -> pd.DataFrame:
     return _parse_date_columns(df)
 
 
-# ── 공개 함수 ─────────────────────────────────────────────────────────────
-@st.cache_data
-def load_raw_data() -> dict[str, pd.DataFrame]:
+@st.cache_data(ttl=3600)
+def get_shifted_raw_data(force_refresh: bool = False) -> dict[str, pd.DataFrame]:
+    """
+    모든 테이블을 로드하고 날짜를 3320일 밀어줍니다. (v3: Renamed to clear cache)
+    """
     members = _read_table("members")
     transactions = _read_table("transactions")
     user_logs = _read_table("user_logs")
@@ -172,7 +176,7 @@ def _inject_churn_probability(
     if df.empty:
         return df
 
-    raw = load_raw_data()
+    raw = get_shifted_raw_data()
     predictions = raw.get("predictions", pd.DataFrame())
 
     # 1) churn_predictions 우선
@@ -219,9 +223,11 @@ def _inject_churn_probability(
 
             # risk_grade 없으면 churn_prob로 생성
             if "risk_grade" not in df.columns:
-                df["risk_grade"] = df["churn_prob"].apply(
-                    lambda x: "위험도 높음" if x >= HIGH_RISK_THRESHOLD else "위험도 중간"
-                )
+                def determine_grade(x):
+                    if x >= 0.9: return "높음"
+                    if x >= 0.8: return "보통"
+                    return "낮음"
+                df["risk_grade"] = df["churn_prob"].apply(determine_grade)
 
             # main_reason_code 없으면 간단 규칙으로 생성
             if "main_reason_code" not in df.columns:
@@ -257,7 +263,7 @@ def _inject_churn_probability(
 
     if "risk_grade" not in df.columns:
         df["risk_grade"] = df["churn_prob"].apply(
-            lambda x: "위험도 높음" if x >= HIGH_RISK_THRESHOLD else "위험도 중간"
+            lambda x: "높음" if x >= 0.9 else ("보통" if x >= 0.8 else "낮음")
         )
 
     if "main_reason_code" not in df.columns:
@@ -288,7 +294,7 @@ def inject_churn_probability(
     if df.empty:
         return df
 
-    raw = load_raw_data()
+    raw = get_shifted_raw_data()
     predictions = raw.get("predictions", pd.DataFrame())
 
     def determine_reason(row):
@@ -342,14 +348,15 @@ def inject_churn_probability(
                 df.loc[missing_mask, "churn_prob"] = rng.uniform(0.0, 1.0, missing_mask.sum())
 
         # risk_grade fallback
+        def determine_grade(x):
+            if x >= 0.9: return "높음"
+            if x >= 0.8: return "보통"
+            return "낮음"
+
         if "risk_grade" not in df.columns:
-            df["risk_grade"] = df["churn_prob"].apply(
-                lambda x: "위험도 높음" if x >= HIGH_RISK_THRESHOLD else "위험도 중간"
-            )
+            df["risk_grade"] = df["churn_prob"].apply(determine_grade)
         else:
-            generated_grade = df["churn_prob"].apply(
-                lambda x: "위험도 높음" if x >= HIGH_RISK_THRESHOLD else "위험도 중간"
-            )
+            generated_grade = df["churn_prob"].apply(determine_grade)
             df["risk_grade"] = df["risk_grade"].fillna(generated_grade)
 
         # main_reason_code fallback
@@ -379,14 +386,15 @@ def inject_churn_probability(
             df["churn_prob"] = rng.uniform(0.0, 1.0, len(df))
 
     # risk_grade 보강
+    def determine_grade(x):
+        if x >= 0.9: return "높음"
+        if x >= 0.8: return "보통"
+        return "낮음"
+
     if "risk_grade" not in df.columns:
-        df["risk_grade"] = df["churn_prob"].apply(
-            lambda x: "위험도 높음" if x >= HIGH_RISK_THRESHOLD else "위험도 중간"
-        )
+        df["risk_grade"] = df["churn_prob"].apply(determine_grade)
     else:
-        generated_grade = df["churn_prob"].apply(
-            lambda x: "위험도 높음" if x >= HIGH_RISK_THRESHOLD else "위험도 중간"
-        )
+        generated_grade = df["churn_prob"].apply(determine_grade)
         df["risk_grade"] = df["risk_grade"].fillna(generated_grade)
 
     # main_reason_code 보강

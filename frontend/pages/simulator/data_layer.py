@@ -4,7 +4,7 @@ from datetime import datetime, timedelta
 import streamlit as st
 
 from pages.action_board.config import HIGH_RISK_THRESHOLD, TWD_TO_KRW, EXPIRY_WINDOW_DAYS
-from pages.action_board.data_layer import load_raw_data, inject_churn_probability
+from pages.action_board.data_layer import get_shifted_raw_data, inject_churn_probability
 from pages.simulator.config import A_BASE_RETENTION, A_RETENTION_FACTOR, B_FIXED_RETENTION
 
 
@@ -13,7 +13,7 @@ def get_real_sim_data(virtual_today):
     """
     실제 DB 데이터를 로드하여 분석 기준일 기준의 고위험군 유저 풀을 생성합니다.
     """
-    raw_result = load_raw_data()
+    raw_result = get_shifted_raw_data()
     if not raw_result or "transactions" not in raw_result:
         return pd.DataFrame()
 
@@ -75,13 +75,14 @@ def get_real_sim_data(virtual_today):
     if candidates.empty:
         return pd.DataFrame()
 
-    # 필드 정리
+    # 필드 정리 및 중복 컬럼 제거 (ValueError 방지)
     candidates = candidates.rename(
         columns={
             "msno": "user_id",
             "churn_prob": "churn_probability"
         }
     )
+    candidates = candidates.loc[:, ~candidates.columns.duplicated()]
 
     # 가입 기간 (임시 시뮬레이션용)
     rng = np.random.default_rng(42)
@@ -95,7 +96,7 @@ def get_simulator_default_date():
     데이터 시점에 맞는 기본 분석 기준일을 자동 계산합니다.
     membership_expire_date의 최댓값 근처를 기본값으로 사용합니다.
     """
-    raw_result = load_raw_data()
+    raw_result = get_shifted_raw_data()
     if not raw_result or "transactions" not in raw_result:
         return datetime.today().date()
 
@@ -144,9 +145,9 @@ def calculate_roi_data(target_a_count, target_b_count, retention_a, retention_b,
     ]
 
     roi_df = pd.DataFrame({
-        "Month": ["1개월 후", "2개월 후", "3개월 후"] * 2,
-        "Group": ["Group A"] * 3 + ["Group B"] * 3,
-        "Revenue": rev_a + rev_b
+        "경과 월": ["1개월 후", "2개월 후", "3개월 후"] * 2,
+        "그룹": ["할인 쿠폰군 (A)"] * 3 + ["무료 연장군 (B)"] * 3,
+        "예상 매출액": rev_a + rev_b
     })
 
     return roi_df, sum(rev_a), sum(rev_b)
