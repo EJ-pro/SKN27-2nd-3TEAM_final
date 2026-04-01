@@ -279,7 +279,6 @@ for key, val in [("vvip_selected", False), ("gen_selected", False)]:
 # ==========================================
 # 타이틀
 # ==========================================
-st.markdown("🌸 &nbsp; **봄**", unsafe_allow_html=True)
 st.title("고위험군 액션 보드")
 st.caption("고객 가치에 따라 그룹을 나누어 맞춤형 마케팅 액션을 시뮬레이션합니다.")
 st.markdown("<hr>", unsafe_allow_html=True)

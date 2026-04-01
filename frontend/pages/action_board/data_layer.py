@@ -16,26 +16,6 @@ from sqlalchemy import create_engine, text
 from pages.action_board.config import HIGH_RISK_THRESHOLD
 
 
-# ── DB 연결 ───────────────────────────────────────────────────────────────
-# 빠르게 진행하려고 기본값도 넣어둠
-DB_USER = os.getenv("DB_USER", "root")
-DB_PASSWORD = os.getenv("DB_PASSWORD", "root1234")
-DB_HOST = os.getenv("DB_HOST", "127.0.0.1")
-DB_PORT = os.getenv("DB_PORT", "3307")
-DB_NAME = os.getenv("DB_NAME", "churn_db")
-
-DB_URL = (
-    f"mysql+pymysql://{DB_USER}:{DB_PASSWORD}"
-    f"@{DB_HOST}:{DB_PORT}/{DB_NAME}?charset=utf8mb4"
-)
-
-engine = create_engine(
-    DB_URL,
-    pool_pre_ping=True,
-    pool_recycle=3600,
-)
-
-
 # ── 내부 헬퍼 ─────────────────────────────────────────────────────────────
 def _parse_date_columns(df: pd.DataFrame) -> pd.DataFrame:
     if df.empty:
@@ -77,7 +57,6 @@ def _parse_date_columns(df: pd.DataFrame) -> pd.DataFrame:
 
     return df
 
-print("DB_URL =", DB_URL)
 def _read_table(table_name: str) -> pd.DataFrame:
     with engine.connect() as conn:
         df = pd.read_sql(text(f"SELECT * FROM {table_name}"), conn)

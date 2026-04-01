@@ -6,7 +6,10 @@ import pandas as pd
 import plotly.express as px
 import streamlit as st
 
-from pages.action_board.config import SCALE_FACTOR, TWD_TO_KRW, REASON_GROUPS
+from pages.action_board.config import (
+    SCALE_FACTOR, TWD_TO_KRW, REASON_GROUPS, 
+    HIGH_RISK_THRESHOLD, EXPIRY_WINDOW_DAYS
+)
 from pages.action_board.data_layer import inject_churn_probability, get_shifted_raw_data
 from pages.action_board.metrics import build_kpi_report, build_trend_data
 from pages.simulator.data_layer import get_simulator_default_date
@@ -228,8 +231,8 @@ trend_df = build_trend_data(transactions, virtual_today)
 
 
 # ── 헤더 ──────────────────────────────────────────────────────────────────────
-st.title("🌸 KKBOX 이탈 방어 시스템")
-st.subheader("이탈 방어 실시간 모니터링")
+st.title("🌸 이탈 방어 시스템")
+st.subheader("이탈 방어 모니터링")
 st.markdown("<hr>", unsafe_allow_html=True)
 
 
@@ -238,10 +241,11 @@ col1, col2, col3 = st.columns(3)
 
 with col1:
     st.metric(
-        "🚨 실시간 고위험 유저",
+        "🚨 고위험 유저",
         f"{report.today.high_risk_users:,}명",
         f"{report.user_delta:+,}명",
         delta_color="inverse",
+        help=f"구독 만료일이 {EXPIRY_WINDOW_DAYS}일 이내로 남았으며, 이탈 확률이 {int(HIGH_RISK_THRESHOLD*100)}% 이상으로 예측된 유저입니다."
     )
 
 with col2:
@@ -250,13 +254,15 @@ with col2:
         f"{report.today.revenue_at_risk:,.0f}원",
         f"{report.revenue_delta:+,.0f}원",
         delta_color="inverse",
+        help="방어 성공 유저의 매출을 제외한 실질적 매출 위기 금액입니다."
     )
 
 with col3:
+    # 방어 성공 금액을 퍼센트 옆에 병기하거나 델타 영역에 표시
     st.metric(
         "🛡️ 이탈 방어 성공률",
         f"{report.today.defense_rate:.1f}%",
-        f"{report.defense_rate_delta:+.1f}%p",
+        f"+{report.today.defended_revenue:,.0f}원 방어 (전일대비 {report.defense_rate_delta:+.1f}%p)",
         delta_color="normal",
     )
 
@@ -336,7 +342,7 @@ else:
 st.info(f"""
 ⚖️ **{virtual_today.strftime('%Y-%m-%d')} 기준 운영 리포트**
 
-- **모니터링 대상**: 실시간 감지된 고위험 유저 **{report.today.high_risk_users:,}명** (전일 대비 {report.user_delta:+,}명)
-- **방어 성과**: AI 기반 이탈 방어 성공률 **{report.today.defense_rate:.1f}%** 기록 (전일 대비 {report.defense_rate_delta:+.1f}%p)
+- **모니터링 대상**: 감지된 고위험 유저 **{report.today.high_risk_users:,}명** (전일 대비 {report.user_delta:+,}명)
+- **방어 성과**: 머신러닝 기반 이탈 방어 성공률 **{report.today.defense_rate:.1f}%** 기록 (전일 대비 {report.defense_rate_delta:+.1f}%p)
 - **핵심 인사이트**: 현재 고위험군 내에서 **『{top_reason}』** 비중이 가장 두드러집니다. 해당 유저층을 타겟으로 한 정밀 리텐션 액션(쿠폰/프로모션) 수행을 권장합니다.
 """)

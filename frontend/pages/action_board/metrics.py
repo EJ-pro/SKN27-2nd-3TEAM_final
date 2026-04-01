@@ -19,7 +19,7 @@ import numpy as np
 import pandas as pd
 
 from pages.action_board.config import HIGH_RISK_THRESHOLD, EXPIRY_WINDOW_DAYS, SCALE_FACTOR, TWD_TO_KRW
-from pages.action_board.modeling import get_defended_users_count
+from pages.action_board.modeling import get_defended_users_count, get_defended_users_mask
 
 
 # ── 데이터 클래스 ─────────────────────────────────────────────────────────────
@@ -28,7 +28,8 @@ from pages.action_board.modeling import get_defended_users_count
 class KPISnapshot:
     """단일 시점의 KPI 스냅샷."""
     high_risk_users: int        # 스케일업 적용 고위험 유저 수
-    revenue_at_risk: float      # 스케일업 적용 매출 위기 총액 (원)
+    revenue_at_risk: float      # 스케일업 적용 순 매출 위기 총액 (잠재 - 방어성공)
+    defended_revenue: float     # 방어 성공으로 보존된 금액 (원)
     defense_rate: float         # 이탈 방어 성공률 (%)
 
 
@@ -72,15 +73,27 @@ def _filter_high_risk(df: pd.DataFrame, target_date: datetime) -> pd.DataFrame:
 def _snapshot(df: pd.DataFrame, target_date: datetime, seed_offset: int) -> KPISnapshot:
     hr = _filter_high_risk(df, target_date)
     if hr.empty:
-        return KPISnapshot(0, 0.0, 0.0)
+        return KPISnapshot(0, 0.0, 0.0, 0.0)
         
-    # 모델로부터 방어 성공 유저 수 획득
-    defended_count = get_defended_users_count(hr, seed_offset)
+    # 모델로부터 방어 성공 데이터 획득
+    defended_mask = get_defended_users_mask(hr, seed_offset)
+    defended_count = int(defended_mask.sum())
     defense_rate = (defended_count / len(hr)) * 100
+    
+    # 금액 계산
+    # 1. 잠재적 총 위기 금액
+    total_potential_revenue = hr["plan_list_price"].sum() * SCALE_FACTOR * TWD_TO_KRW
+    
+    # 2. 방어 성공으로 지켜낸 금액
+    defended_revenue = hr[defended_mask]["plan_list_price"].sum() * SCALE_FACTOR * TWD_TO_KRW
+    
+    # 3. 실질 매출 위기 (Net Risk)
+    revenue_at_risk = total_potential_revenue - defended_revenue
     
     return KPISnapshot(
         high_risk_users=len(hr) * SCALE_FACTOR,
-        revenue_at_risk=hr["plan_list_price"].sum() * SCALE_FACTOR * TWD_TO_KRW,
+        revenue_at_risk=revenue_at_risk,
+        defended_revenue=defended_revenue,
         defense_rate=round(defense_rate, 1),
     )
 

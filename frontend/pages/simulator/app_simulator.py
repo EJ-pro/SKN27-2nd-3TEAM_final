@@ -319,10 +319,6 @@ with st.sidebar:
     st.date_input("분석 기준일", key="virtual_today")
     virtual_today = datetime.combine(st.session_state.virtual_today, datetime.min.time())
     st.markdown("---")
-    st.markdown(
-        "<small style='color:#C94E80'>🌸 봄 시즌 리텐션 캠페인</small>",
-        unsafe_allow_html=True,
-    )
 
 with st.spinner("🌸 실제 고객 데이터 분석 중..."):
     sim_df = get_real_sim_data(virtual_today)

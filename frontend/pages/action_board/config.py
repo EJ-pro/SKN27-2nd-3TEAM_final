@@ -5,12 +5,12 @@ from datetime import datetime
 # 실제 구독자 모집단 / 샘플 크기 비율.
 # 현재는 더미 데이터(2.5만명) 기준이므로 40배로 스케일업.
 # 실데이터 연동 시 이 값을 1로 변경하거나 제거하세요.
-SCALE_FACTOR = 40
+SCALE_FACTOR = 10
 TWD_TO_KRW = 42  # 1 대만 달러 ≈ 42 한국 원
 
 # 고위험 유저 판정 기준
-HIGH_RISK_THRESHOLD = 0.70          # 이탈 확률 >= 이 값이면 고위험
-EXPIRY_WINDOW_DAYS  = 14            # 만료일까지 남은 일수 <= 이 값이면 대상
+HIGH_RISK_THRESHOLD = 0.60          # 이탈 확률 >= 이 값이면 고위험
+EXPIRY_WINDOW_DAYS  = 3            # 만료일까지 남은 일수 <= 이 값이면 대상
 
 # ── 비즈니스 사유 그룹화 (Shared) ──────────────────────────────────────────────────
 REASON_GROUPS = {
