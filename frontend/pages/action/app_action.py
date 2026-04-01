@@ -376,7 +376,7 @@ COLUMN_CONFIG_BASE = {
                              "이탈 확률", format="%.2f", min_value=0, max_value=1, width="medium"),
     "risk_grade":        st.column_config.TextColumn("등급",            width="small"),
     "main_reason_code":  st.column_config.TextColumn("주요 이탈 원인",  width="medium"),
-    "plus_price":        st.column_config.NumberColumn("기대 추가 수익", format="%d원", width="medium"),
+    "plus_price":        st.column_config.NumberColumn("기대 추가 수익", format="%,d원", width="medium"),
 }
 
 # ── 위험등급별 행 배경색 매핑 ──
@@ -428,7 +428,7 @@ def style_table(df: pd.DataFrame, theme: str = "pink") -> pd.io.formats.style.St
         try:
             p = float(val)
             if p >= 0.9: return "background-color:#FECACA; color:#7F1D1D; font-weight:700; border-radius:4px;"
-            if p >= 0.7: return "background-color:#FED7AA; color:#7C2D12; font-weight:600;"
+            if p >= 0.8: return "background-color:#FED7AA; color:#7C2D12; font-weight:600;"
             return f"background-color:#DCFCE7; color:#14532D; font-weight:500;"
         except: return ""
 

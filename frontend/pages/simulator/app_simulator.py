@@ -271,7 +271,7 @@ st.markdown('<p class="section-title">① 캠페인 그룹 설정</p>', unsafe_a
 
 col_a, col_b = st.columns(2, gap="large")
 
-_filter_default_idx = 1
+_filter_default_idx = 2
 _filter_default     = FILTER_OPTIONS_B[_filter_default_idx]
 
 if "filter_b" not in st.session_state:
@@ -297,7 +297,7 @@ with col_a:
         )
 
         discount_rate = st.slider(
-            "할인율 (%)", 0, 100, 20, step=5, key="d_a", format="%d%%",
+            "할인율 (%)", 0, 100, 50, step=5, key="d_a", format="%d%%",
             help=f"가격 탄력성 모델(k={A_PRICE_SENSITIVITY_K})에 따라 할인율이 높을수록 이탈 억제 효과가 지수적으로 증가합니다."
         )
         ret_a, ret_b  = calculate_retention_rates(discount_rate, sim_df, target_b_df)
@@ -435,6 +435,10 @@ avg_price = sim_df["plan_list_price"].mean() if not sim_df.empty else 149
 roi_df, total_rev_a, total_rev_b, dist_a, dist_b = calculate_roi_data(
     target_a_count, target_b_count, ret_a, ret_b, discount_rate, avg_price, sim_df, target_b_df
 )
+# 데이터 안정성 확보 (NaN 방지)
+roi_df = roi_df.fillna(0)
+total_rev_a = 0 if np.isnan(total_rev_a) else total_rev_a
+total_rev_b = 0 if np.isnan(total_rev_b) else total_rev_b
 better_group = "A" if total_rev_a > total_rev_b else "B"
 diff_rev     = abs(total_rev_a - total_rev_b)
 
@@ -502,21 +506,35 @@ with chart_col1:
         text="예상 매출액",
         color_discrete_map={"할인 쿠폰군 (A)": "#F472A8", "무료 연장군 (B)": "#55A83A"},
     )
+    # 막대 위 숫자가 잘리지 않도록 Y축 상단 마진 확보
+    max_val = roi_df["예상 매출액"].max() if not roi_df.empty else 100
+    
     fig_rev.update_traces(
         texttemplate="%{text:,.0f}",
-        textposition="outside",
+        textposition="auto", # 막대 크기에 따라 내부/외부 자동 결정
         marker_line_width=0,
-        textfont=dict(size=11, color="#8B2255"),
+        textfont=dict(size=10, color="#8B2255"),
+        cliponaxis=False # 축 밖으로 나가도 숫자 표시
     )
     fig_rev.update_layout(
-        height=350,
+        height=380,
         paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
-        font=dict(family="Noto Sans KR", color="#8B2255"),
-        title=None,
-        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1, title_text="", font=dict(size=12)),
-        margin=dict(t=40, b=10, l=10, r=10),
-        xaxis=dict(title=None, showgrid=False),
-        yaxis=dict(title=None, showgrid=True, gridcolor="#F5F0F3", showticklabels=False),
+        font=dict(family="Noto Sans KR", size=11, color="#8B2255"),
+        title_text="", # 'undefined' 방지
+        legend=dict(
+            orientation="h", 
+            yanchor="bottom", y=1.05, 
+            xanchor="right", x=1, 
+            title_text="", # 범례 타이틀 제거하여 공간 확보
+            font=dict(size=11)
+        ),
+        margin=dict(t=70, b=60, l=20, r=20), # 하단 마진 확대하여 '개월 후' 표시 보장
+        xaxis=dict(title=None, showgrid=False, tickangle=0),
+        yaxis=dict(
+            title=None, showgrid=True, gridcolor="#F5F0F3", 
+            showticklabels=False,
+            range=[0, max_val * 1.3] # 상단 여백 추가 확보
+        ),
         bargap=0.28, bargroupgap=0.08,
     )
     st.plotly_chart(fig_rev, use_container_width=True)
@@ -550,14 +568,23 @@ with chart_col2:
         textfont=dict(size=10, color="#2E7D1A"),
     ))
     fig_surv.update_layout(
-        height=350,
-        title=dict(text="월별 잔존 유저 추이", font=dict(size=12, color="#8B2255")),
+        height=380,
+        title=dict(
+            text="월별 잔존 유저 추이", 
+            font=dict(size=13, color="#8B2255"),
+            x=0, y=0.95
+        ),
         paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
         font=dict(family="Noto Sans KR", size=11),
-        legend=dict(orientation="h", y=1.1, font=dict(size=11)),
-        margin=dict(t=50, b=10, l=10, r=10),
-        xaxis=dict(showgrid=False),
-        yaxis=dict(title="잔존 유저 수", showgrid=True, gridcolor="#F5F0F3"),
+        legend=dict(
+            orientation="h", 
+            yanchor="bottom", y=1.02, 
+            xanchor="right", x=1,
+            title_text=""
+        ),
+        margin=dict(t=70, b=60, l=50, r=20), # 좌측 마진 확대하여 '잔존 유저수' 레이블 공간 확보
+        xaxis=dict(showgrid=False, tickfont=dict(size=11)),
+        yaxis=dict(title="잔존 유저 수", showgrid=True, gridcolor="#F5F0F3", tickfont=dict(size=11)),
     )
     st.plotly_chart(fig_surv, use_container_width=True)
 
@@ -570,13 +597,13 @@ st.markdown('<p class="section-title">④ 종합 결론</p>', unsafe_allow_html=
 
 if better_group == "A":
     st.success(
-        f"🟢 **최종 분석**: **할인 쿠폰군(A)**이 캠페인 초기 매출 회수가 빠르며, "
+        f"🟢 **최종 분석**: **할인 쿠폰군(A)** 이 캠페인 초기 매출 회수가 빠르며, "
         f"3개월 누적 수익이 무료 연장군(B) 대비 약 **{diff_rev:,.0f}원** 더 높게 예측됩니다.\n\n"
         "👉 **단기 수익 최적화 전략**으로 본 캠페인을 추천합니다."
     )
 else:
     st.info(
-        f"🔵 **최종 분석**: **무료 연장군(B)**이 첫 달 매출 공백이 있으나, "
+        f"🔵 **최종 분석**: **무료 연장군(B)** 이 첫 달 매출 공백이 있으나, "
         f"고객 유지 효과로 3개월 누적 수익이 할인 쿠폰군(A)보다 약 **{diff_rev:,.0f}원** 더 유리합니다.\n\n"
         "👉 **장기 LTV(고객 생애 가치) 극대화 전략**으로 본 캠페인을 추천합니다."
     )
