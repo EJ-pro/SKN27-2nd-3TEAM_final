@@ -1,7 +1,7 @@
 
 import os
 import pandas as pd
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, text
 
 # 1. 환경 설정 (data_layer.py와 동일)
 DB_USER = os.getenv("DB_USER", "root")
@@ -24,9 +24,11 @@ df = pd.read_csv(CSV_PATH)
 df['prediction_date'] = pd.Timestamp('2026-04-01')
 
 # 3. DB 푸시
-print(f"🚀 {len(df)}명의 분석 데이터를 churn_predictions 테이블로 전송 중...")
+print(f"🚀 {len(df)}명의 분석 데이터를 churn_prediction 테이블로 전송 중...")
 try:
-    df.to_sql('churn_prediction', engine, if_exists='replace', index=False)
+    with engine.begin() as conn:
+        conn.execute(text("DELETE FROM churn_prediction"))
+        df.to_sql('churn_prediction', conn, if_exists='append', index=False)
     print("✅ 완료! 모든 데이터가 성공적으로 푸시되었습니다.")
 except Exception as e:
     print(f"❌ DB 푸시 중 에러 발생: {e}")

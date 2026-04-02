@@ -88,9 +88,9 @@ def get_shifted_raw_data(force_refresh: bool = False) -> dict[str, pd.DataFrame]
     transactions = _read_table("transactions")
     user_logs = _read_table("user_logs")
 
-    # churn_predictions 는 있을 수도 있고 없을 수도 있게 처리
+    # churn_prediction 은 있을 수도 있고 없을 수도 있게 처리
     try:
-        predictions = _read_table("churn_predictions")
+        predictions = _read_table("churn_prediction")
     except Exception:
         predictions = pd.DataFrame()
     print("members:", members.shape)
@@ -162,7 +162,7 @@ def _inject_churn_probability(
 ) -> pd.DataFrame:
     """
     우선순위
-    1. churn_predictions 테이블 값 사용
+    1. churn_prediction 테이블 값 사용
     2. transactions에 이미 churn_prob 있으면 사용
     3. is_churn 기반 더미
     4. is_auto_renew 기반 더미
@@ -174,7 +174,7 @@ def _inject_churn_probability(
     raw = get_shifted_raw_data()
     predictions = raw.get("predictions", pd.DataFrame())
 
-    # 1) churn_predictions 우선
+    # 1) churn_prediction 우선
     if not predictions.empty and "msno" in predictions.columns:
         pred_df = predictions.copy()
 
@@ -278,7 +278,7 @@ def inject_churn_probability(
 ) -> pd.DataFrame:
     """
     우선순위
-    1. churn_predictions 테이블 값 사용
+    1. churn_prediction 테이블 값 사용
     2. transactions에 이미 churn_prob 있으면 사용
     3. is_churn 기반 더미
     4. is_auto_renew 기반 더미
@@ -299,7 +299,7 @@ def inject_churn_probability(
             return "자동결제 미등록"
         return "활동성 저하(추정)"
 
-    # 1) churn_predictions 우선 사용
+    # 1) churn_prediction 우선 사용
     if not predictions.empty and "msno" in predictions.columns:
         pred_df = predictions.copy()
 

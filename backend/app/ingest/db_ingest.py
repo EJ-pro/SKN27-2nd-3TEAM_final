@@ -1,6 +1,6 @@
 import os
 import pandas as pd
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, text
 from dotenv import load_dotenv
 
 def ingest_to_mysql():
@@ -23,8 +23,8 @@ def ingest_to_mysql():
     # 2. 업로드할 파일 리스트
     model_dir = os.path.join(os.path.dirname(__file__), '..', '..', '..', 'model')
     files_to_ingest = {
-        'analysis_model.csv': 'churn_analysis_results',
-        'churn_risk_result.csv': 'churn_risk_results'
+        'analysis_model.csv': 'churn_predict_reason',
+        'churn_risk_result.csv': 'churn_risk_result'
     }
     
     for filename, table_name in files_to_ingest.items():
@@ -34,8 +34,10 @@ def ingest_to_mysql():
             print(f"🚀 {filename} -> {table_name} 적재 중...")
             df = pd.read_csv(file_path)
             
-            # DB 적재 (기존 데이터 Replace)
-            df.to_sql(name=table_name, con=engine, if_exists='replace', index=False)
+            # DB 적재 (기존 데이터 비우고 Append하여 스키마 제약조건 유지)
+            with engine.begin() as conn:
+                conn.execute(text(f"DELETE FROM {table_name}"))
+                df.to_sql(name=table_name, con=conn, if_exists='append', index=False)
             print(f"✅ {table_name} 적재 완료! (총 {len(df)}행)")
         else:
             print(f"⚠️ Warning: {filename} 파일을 찾을 수 없어 건너뜁니다.")

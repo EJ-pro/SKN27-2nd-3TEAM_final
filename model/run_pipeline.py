@@ -21,6 +21,15 @@ def run_script(script_path, cwd=None):
 def main():
     # 0. 프로젝트 루트 경로 및 모델 경로 설정
     project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+    
+    # [추가] 문서 동기화 (Doc/README.md -> root/README.md)
+    import shutil
+    doc_readme = os.path.join(project_root, 'Doc', 'README.md')
+    root_readme = os.path.join(project_root, 'README.md')
+    if os.path.exists(doc_readme):
+        shutil.copy(doc_readme, root_readme)
+        print("📝 문서 동기화 완료: Doc/README.md -> README.md")
+
     model_dir = os.path.join(project_root, 'model')
     backend_dir = os.path.join(project_root, 'backend')
     ingest_script = os.path.join(backend_dir, 'app', 'ingest', 'db_ingest.py')
