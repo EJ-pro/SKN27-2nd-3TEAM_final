@@ -180,20 +180,11 @@
 2. Loss Curve (학습 손실 곡선)
 
 <p align="center">
-<img src="Image/roc_auc_curve1.png" width="45%" alt="ROC-AUC Curve" />
+<img src="Image/roc_auc_curve1.png" width="85%" alt="ROC-AUC Curve" />
 </p>
 
 - Feature Importance 
 
-<<<<<<< HEAD
-```env
-DB_HOST=localhost
-DB_PORT=3307
-DB_NAME=churn_db
-DB_USER=root
-DB_PASSWORD=app1234
-```
-=======
 <p align="center">
   <img src="Image/feature_importance1.png" width="85%" alt="Feature Importance" />
 </p>
@@ -210,7 +201,7 @@ DB_PASSWORD=app1234
 2. Loss Curve (학습 손실 곡선)
 
 <p align="center">
-<img src="Image/roc_auc_curve.png" width="45%" alt="ROC-AUC Curve" />
+<img src="Image/roc_auc_curve.png" width="85%" alt="ROC-AUC Curve" />
 </p>
 
 - Feature Importance
@@ -218,7 +209,6 @@ DB_PASSWORD=app1234
 <p align="center">
   <img src="Image/feature_importance.png" width="85%" alt="Feature Importance" />
 </p>
->>>>>>> 42364a6a7e8b75a30e618b2ada7ed7de858cee27
 
 ---
 
@@ -236,17 +226,6 @@ DB_PASSWORD=app1234
 - **활동성 변수의 중요성**  
   unique_ratio_7(최근 7일간 고유 곡 비율)과 active_days_30(30일 내 활동일수)은 예측에 중요한 역할을 해, 사용 패턴 변화 역시 이탈 신호임을 보여준다.
 
-<<<<<<< HEAD
-```bash
-cd backend
-
-docker compose down --remove-orphans
-docker compose build
-docker compose up -d
-docker compose exec app bash
-python -m scripts.seed_data
-```
-=======
 ## 2. 모델 성능 및 안정성 평가 (Confusion Matrix & Loss Curve)
 - **XGBoost CV Ensemble (baseline) 모델 성능**  
   - True Negative (유지 맞춤): 6,612건  
@@ -260,7 +239,6 @@ python -m scripts.seed_data
   - True Positive: 6,621건  
 - Stacking 모델이 유지(0) 클래스에서 더 높은 정확도를 보이며, 이탈(1) 클래스도 균형 있게 예측하여 전체적인 성능 안정성을 개선하였다.
 - XGBoost, LightGBM, CatBoost 세 모델 모두 Loss Curve가 안정적으로 감소하며 과적합 없이 신뢰성 있는 학습을 달성하였다.
->>>>>>> 42364a6a7e8b75a30e618b2ada7ed7de858cee27
 
 ## 3. 비즈니스 제안 및 추가 제안
 - **타겟 마케팅 집중**  
@@ -276,52 +254,8 @@ python -m scripts.seed_data
 
 ## 결론
 
-<<<<<<< HEAD
-## 3. 데이터 분석 및 모델링 파이프라인 (Data Pipeline)
-
-서비스 구동에 필요한 고위험 유저 예측 및 사유 분석 데이터를 생성합니다. (전체 로그 처리로 인해 시간이 소요될 수 있습니다)
-
-```bash
-# 🚀 통합 파이프라인 한 번에 실행 (가장 권장되는 방법)
-python model/run_pipeline.py
-
-```
-
----
-
-## 4. 데이터베이스 및 백엔드 연동 (DB Ingestion)
-
-생성된 분석 결과 CSV 파일을 MySQL DB의 정해진 스키마(`churn_prediction`, `churn_predict_reason` 등)에 안전하게 적재합니다.
-
-```bash
-# 분석 결과 DB 적재 실행
-python backend/app/ingest/db_ingest.py
-```
-
----
-
-## 5. 서비스 실행 (Frontend)
-
-Streamlit을 통해 대시보드와 마케팅 시뮬레이터 인터페이스를 구동합니다.
-
-```bash
-# 프로젝트 루트에서 실행
-streamlit run frontend/app.py
-```
-
----
-
-## 💡 파이프라인 요약 순서
-
-1. `uv venv` (가상환경 구성)
-2. `backend/.env` (환경 변수 설정)
-3. `docker-compose up` (인프라/DB 실행)
-4. `python model/run_pipeline.py` (데이터 생성 및 DB 자동 적재)
-5. `streamlit run frontend/app.py` (서비스 시작)
-=======
 이번 프로젝트에서는 XGBoost와 Stacking 모델을 활용해 고객 이탈 예측을 시도했다.
 특히 ‘자동 갱신 여부(is_auto_renew_last)’와 ‘결제 공백 기간(last_payment_gap)’이 가장 큰 이탈 요인으로 나타났다.
 두 모델 모두 안정적인 학습 곡선을 기록하며, Stacking 모델은 유지 고객과 이탈 고객을 고르게 예측하는 뛰어난 성능을 보였다.
 이를 바탕으로, 자동 갱신 해지 고객을 대상으로 한 타겟 마케팅 전략과 이탈 징후 모니터링 시스템 구축이 필요하다.
 앞으로도 지속적인 데이터 업데이트와 모델 재학습을 통해 리텐션 효과를 극대화할 수 있을 것으로 기대된다.
->>>>>>> 42364a6a7e8b75a30e618b2ada7ed7de858cee27
