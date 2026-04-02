@@ -8,12 +8,9 @@ import {
   BarChart2, 
   PieChart, 
   Calendar,
-  ChevronRight,
   Music
 } from 'lucide-react';
 import { 
-  LineChart, 
-  Line, 
   XAxis, 
   YAxis, 
   CartesianGrid, 
