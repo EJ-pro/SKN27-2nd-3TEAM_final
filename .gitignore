@@ -6,3 +6,16 @@ frontend/__pycache__
 frontend/pages/action/__pycache__
 frontend/pages/simulator/__pycache__
 frontend/pages/action_board/__pycache__
+
+# 모델 및 데이터 결과물 (대용량)
+model/*.csv
+*.csv
+backend/data/raw/*.csv
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Docker
+backend/data/raw/user_logs_aug_v2.csv
+model/churn_risk_result.csv

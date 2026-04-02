@@ -59,15 +59,6 @@ docker-compose up -d
 # 🚀 통합 파이프라인 한 번에 실행 (가장 권장되는 방법)
 python model/run_pipeline.py
 
-# 또는 개별 스크립트 순차 실행:
-# 1. 핵심 이탈 예측 모델 학습 및 결과 생성 (final_model.csv 생성)
-python model/final_model.py
-
-# 2. 이탈 사유 정밀 분석 리포트 생성 (analysis_model.csv 생성)
-python model/analysis_model.py
-
-# 3. Winback 시뮬레이션 데이터 생성 (churn_risk_result.csv 생성)
-python model/user_future.py
 ```
 
 ---

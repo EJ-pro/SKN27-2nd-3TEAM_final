@@ -5,14 +5,14 @@ import streamlit as st
 
 # [중요] 기존 액션 보드 모듈에서 데이터 처리 및 설정 재사용
 from pages.action_board.config import HIGH_RISK_THRESHOLD, TWD_TO_KRW, EXPIRY_WINDOW_DAYS, CHURN_REASONS
-from pages.action_board.data_layer import load_raw_data, inject_churn_probability
+from pages.action_board.data_layer import get_shifted_raw_data, inject_churn_probability
 
 @st.cache_data
 def get_real_action_data(virtual_today):
     """
     실제 DB 데이터를 로드하여 액션 보드 전용 고도화 데이터를 가공합니다.
     """
-    raw_result = load_raw_data()
+    raw_result = get_shifted_raw_data()
     if not raw_result or "transactions" not in raw_result:
         return pd.DataFrame()
     

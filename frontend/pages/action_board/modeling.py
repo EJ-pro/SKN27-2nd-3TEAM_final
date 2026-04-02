@@ -46,16 +46,23 @@ def predict_defense_probability(df: pd.DataFrame) -> pd.Series:
     # 확률 범위 제한 (0.0 ~ 1.0)
     return base_probs.clip(0.01, 0.99)
 
-def get_defended_users_count(df: pd.DataFrame, seed_offset: int = 0) -> int:
+def get_defended_users_mask(df: pd.DataFrame, seed_offset: int = 0) -> pd.Series:
     """
-    고위험 유저 리스트를 받아, 모델 확률에 따라 '최종 방어 성공' 유저 수를 반환합니다.
+    고위험 유저 리스트를 받아, 모델 확률에 따라 각 유저의 '방어 성공 여부'를 Boolean Mask로 반환합니다.
     """
     if df.empty:
-        return 0
+        return pd.Series(dtype=bool)
     
     probs = predict_defense_probability(df)
     rng = np.random.default_rng(seed_offset)
     
     # 각 유저별로 확률 시행 (Monte Carlo)
     results = rng.random(len(df)) < probs
-    return int(results.sum())
+    return pd.Series(results, index=df.index)
+
+def get_defended_users_count(df: pd.DataFrame, seed_offset: int = 0) -> int:
+    """
+    고위험 유저 리스트를 받아, 최종 방어 성공 유저 수를 반환합니다.
+    """
+    mask = get_defended_users_mask(df, seed_offset)
+    return int(mask.sum())

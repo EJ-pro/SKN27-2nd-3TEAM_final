@@ -19,7 +19,7 @@ import numpy as np
 import pandas as pd
 
 from pages.action_board.config import HIGH_RISK_THRESHOLD, EXPIRY_WINDOW_DAYS, SCALE_FACTOR, TWD_TO_KRW
-from pages.action_board.modeling import get_defended_users_count
+from pages.action_board.modeling import get_defended_users_count, get_defended_users_mask
 
 
 # ── 데이터 클래스 ─────────────────────────────────────────────────────────────
@@ -28,7 +28,8 @@ from pages.action_board.modeling import get_defended_users_count
 class KPISnapshot:
     """단일 시점의 KPI 스냅샷."""
     high_risk_users: int        # 스케일업 적용 고위험 유저 수
-    revenue_at_risk: float      # 스케일업 적용 매출 위기 총액 (원)
+    revenue_at_risk: float      # 스케일업 적용 순 매출 위기 총액 (잠재 - 방어성공)
+    defended_revenue: float     # 방어 성공으로 보존된 금액 (원)
     defense_rate: float         # 이탈 방어 성공률 (%)
 
 
@@ -72,15 +73,27 @@ def _filter_high_risk(df: pd.DataFrame, target_date: datetime) -> pd.DataFrame:
 def _snapshot(df: pd.DataFrame, target_date: datetime, seed_offset: int) -> KPISnapshot:
     hr = _filter_high_risk(df, target_date)
     if hr.empty:
-        return KPISnapshot(0, 0.0, 0.0)
+        return KPISnapshot(0, 0.0, 0.0, 0.0)
         
-    # 모델로부터 방어 성공 유저 수 획득
-    defended_count = get_defended_users_count(hr, seed_offset)
+    # 모델로부터 방어 성공 데이터 획득
+    defended_mask = get_defended_users_mask(hr, seed_offset)
+    defended_count = int(defended_mask.sum())
     defense_rate = (defended_count / len(hr)) * 100
+    
+    # 금액 계산
+    # 1. 잠재적 총 위기 금액
+    total_potential_revenue = hr["plan_list_price"].sum() * SCALE_FACTOR * TWD_TO_KRW
+    
+    # 2. 방어 성공으로 지켜낸 금액
+    defended_revenue = hr[defended_mask]["plan_list_price"].sum() * SCALE_FACTOR * TWD_TO_KRW
+    
+    # 3. 실질 매출 위기 (Net Risk)
+    revenue_at_risk = total_potential_revenue - defended_revenue
     
     return KPISnapshot(
         high_risk_users=len(hr) * SCALE_FACTOR,
-        revenue_at_risk=hr["plan_list_price"].sum() * SCALE_FACTOR * TWD_TO_KRW,
+        revenue_at_risk=revenue_at_risk,
+        defended_revenue=defended_revenue,
         defense_rate=round(defense_rate, 1),
     )
 
@@ -125,56 +138,3 @@ def build_trend_data(
         })
 
     return pd.DataFrame(rows)
-
-
-def build_churn_reasons(df: pd.DataFrame, virtual_today: datetime) -> dict[str, int]:
-    """
-    고위험 유저들의 이탈 주원인을 데이터 기반으로 집계합니다.
-    """
-    hr = _filter_high_risk(df, virtual_today)
-    if hr.empty:
-        return {"데이터 부족": 100}
-
-    # 1. 멤버십 해지 (is_cancel = 1)
-    cancel_mask = (hr["is_cancel"] == 1) if "is_cancel" in hr.columns else (hr["msno"] == "none")
-    cancel_count = len(hr[cancel_mask])
-    
-    # 2. 자동결제 해지 (is_auto_renew = 0)
-    auto_renew_off_mask = (hr["is_auto_renew"] == 0) & (~cancel_mask)
-    auto_renew_off = len(hr[auto_renew_off_mask])
-    
-    # 3. 장기 미접속 (14일 이상)
-    long_term_inactive = 0
-    if "last_activity_date" in hr.columns:
-        long_term_inactive = len(hr[
-            (~cancel_mask) & 
-            (hr["is_auto_renew"] == 1) & 
-            (hr["last_activity_date"] < virtual_today - timedelta(days=14))
-        ])
-    
-    # 4. 청취 권태기 (낮은 완청곡 수)
-    boredom_count = 0
-    if "total_100" in hr.columns:
-        boredom_count = len(hr[
-            (~cancel_mask) & 
-            (hr["is_auto_renew"] == 1) & 
-            (hr.get("last_activity_date", virtual_today) >= virtual_today - timedelta(days=14)) &
-            (hr["total_100"] < 20)
-        ])
-    
-    # 5. 기타
-    etc_count = len(hr) - (cancel_count + auto_renew_off + long_term_inactive + boredom_count)
-    
-    # 결과 취합
-    results = {
-        "멤버십 해지": cancel_count,
-        "자동결제 해지": auto_renew_off,
-        "장기 미접속": long_term_inactive,
-        "청취 권태기": boredom_count,
-        "기타": max(0, etc_count)
-    }
-    
-    total = sum(results.values())
-    if total == 0: return {"데이터 부족": 100}
-    
-    return {k: round((v/total)*100) for k, v in results.items() if v > 0}

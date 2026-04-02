@@ -1,4 +1,5 @@
-CREATE DATABASE IF NOT EXISTS churn_db;
+DROP DATABASE IF EXISTS churn_db;
+CREATE DATABASE churn_db;
 USE churn_db;
 
 CREATE TABLE members (
@@ -32,6 +33,7 @@ CREATE TABLE transactions (
 CREATE TABLE user_logs (
     log_id BIGINT NOT NULL AUTO_INCREMENT,
     msno VARCHAR(50) NOT NULL,
+    log_date DATE DEFAULT NULL,
     num_25 INT DEFAULT NULL,
     num_50 INT DEFAULT NULL,
     num_75 INT DEFAULT NULL,
@@ -45,25 +47,40 @@ CREATE TABLE user_logs (
         FOREIGN KEY (msno) REFERENCES members (msno)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
-CREATE TABLE IF NOT EXISTS churn_predictions (
+CREATE TABLE churn_prediction (
     prediction_id BIGINT AUTO_INCREMENT PRIMARY KEY,
     msno VARCHAR(50) NOT NULL,
-    prediction_date DATE NOT NULL,
-    churn_probability DECIMAL(6,4) NOT NULL,
-    risk_grade VARCHAR(30),
-    main_reason_code VARCHAR(50),
+    churn_probability DECIMAL(10,6) NOT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT fk_predictions_members
-    FOREIGN KEY (msno) REFERENCES members(msno)
-);
+    KEY fk_prediction_members (msno),
+    CONSTRAINT fk_prediction_members
+        FOREIGN KEY (msno) REFERENCES members(msno)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
-CREATE TABLE IF NOT EXISTS action_history (
-    action_id BIGINT AUTO_INCREMENT PRIMARY KEY,
+CREATE TABLE churn_predict_reason (
+    reason_id BIGINT AUTO_INCREMENT PRIMARY KEY,
     msno VARCHAR(50) NOT NULL,
-    action_type VARCHAR(50) NOT NULL,
-    action_detail VARCHAR(100),
-    action_date DATETIME NOT NULL,
+    churn_probability DECIMAL(10,6),
+    reason_1 VARCHAR(255),
+    category_1 VARCHAR(100),
+    reason_2 VARCHAR(255),
+    category_2 VARCHAR(100),
+    reason_3 VARCHAR(255),
+    category_3 VARCHAR(100),
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT fk_actions_members
-    FOREIGN KEY (msno) REFERENCES members(msno)
-);
+    KEY fk_reason_members (msno),
+    CONSTRAINT fk_reason_members
+        FOREIGN KEY (msno) REFERENCES members(msno)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+CREATE TABLE churn_risk_result (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    msno VARCHAR(50) NOT NULL,
+    churn_proba FLOAT,
+    risk_score FLOAT,
+    risk_grade VARCHAR(10),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    KEY fk_risk_members (msno),
+    CONSTRAINT fk_risk_members
+        FOREIGN KEY (msno) REFERENCES members(msno)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
