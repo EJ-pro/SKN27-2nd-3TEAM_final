@@ -1,0 +1,43 @@
+services:
+  mysql:
+    image: mysql:8.0
+    container_name: churn_mysql
+    restart: always
+    environment:
+      MYSQL_ROOT_PASSWORD: app1234
+      MYSQL_DATABASE: churn_db
+      TZ: Asia/Seoul
+    ports:
+      - "3307:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./backend/docker/mysql/init:/docker-entrypoint-initdb.d
+
+  api:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile.api
+    container_name: churn_api
+    depends_on:
+      - mysql
+    environment:
+      DB_USER: root
+      DB_PASSWORD: app1234
+      DB_HOST: mysql
+      DB_PORT: 3306
+      DB_NAME: churn_db
+    ports:
+      - "8000:8000"
+
+  web:
+    build:
+      context: ./frontend-vite
+      dockerfile: Dockerfile.web
+    container_name: churn_web
+    depends_on:
+      - api
+    ports:
+      - "80:80"
+
+volumes:
+  mysql_data:

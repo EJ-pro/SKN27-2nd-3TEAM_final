@@ -56,3 +56,6 @@ seaborn
 tqdm
 catboost
 shap
+fastapi
+uvicorn
+python-multipart
