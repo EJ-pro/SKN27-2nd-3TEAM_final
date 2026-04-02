@@ -16,7 +16,7 @@ import shap
 # =========================================================
 # 0. 경로 및 환경 설정
 # =========================================================
-BASE_PATH = os.path.join(os.path.dirname(__file__), '..', 'backend', 'data', 'raw')
+BASE_PATH = os.path.join(os.path.dirname(__file__), '..', 'backend', 'app', 'data', 'raw')
 
 # 데이터 로드 (상대 경로)
 try:

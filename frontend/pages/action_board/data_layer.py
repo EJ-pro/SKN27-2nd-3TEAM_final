@@ -21,7 +21,7 @@ from pages.action_board.config import HIGH_RISK_THRESHOLD
 env_path = os.path.join(os.path.dirname(__file__), "..", "..", "..", "backend", ".env")
 load_dotenv(env_path)
 
-DB_USER = os.getenv("DB_USER", "appuser")
+DB_USER = os.getenv("DB_USER", "root")
 DB_PASS = os.getenv("DB_PASSWORD", "app1234")
 DB_HOST = os.getenv("DB_HOST", "localhost")
 DB_PORT = os.getenv("DB_PORT", "3307")

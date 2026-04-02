@@ -5,7 +5,7 @@ from datetime import datetime
 # 실제 구독자 모집단 / 샘플 크기 비율.
 # 현재는 더미 데이터(2.5만명) 기준이므로 40배로 스케일업.
 # 실데이터 연동 시 이 값을 1로 변경하거나 제거하세요.
-SCALE_FACTOR = 10
+SCALE_FACTOR = 1
 TWD_TO_KRW = 42  # 1 대만 달러 ≈ 42 한국 원
 
 # 고위험 유저 판정 기준

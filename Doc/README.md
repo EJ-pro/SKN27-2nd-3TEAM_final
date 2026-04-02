@@ -29,7 +29,7 @@ uv pip install -r .\requirements.txt
 DB_HOST=localhost
 DB_PORT=3307
 DB_NAME=churn_db
-DB_USER=appuser
+DB_USER=root
 DB_PASSWORD=app1234
 ```
 
@@ -43,7 +43,12 @@ DB_PASSWORD=app1234
 
 ```bash
 cd backend
-docker-compose up -d
+
+docker compose down --remove-orphans
+docker compose build
+docker compose up -d
+docker compose exec app bash
+python -m scripts.seed_data
 ```
 
 > [!NOTE]

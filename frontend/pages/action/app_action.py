@@ -1,6 +1,7 @@
 import streamlit as st
 import streamlit.components.v1 as components
 import pandas as pd
+from pandas.io.formats.style import Styler
 from datetime import datetime, timedelta
 import base64
 import os
@@ -399,7 +400,7 @@ def prep_display(df: pd.DataFrame, selected: bool) -> pd.DataFrame:
     return out[[c for c in cols if c in out.columns]]
 
 
-def style_table(df: pd.DataFrame, theme: str = "pink") -> pd.io.formats.style.Styler:
+def style_table(df: pd.DataFrame, theme: str = "pink") -> Styler:
     """
     theme: 'pink' (우량) | 'green' (일반)
     디자인 요소:

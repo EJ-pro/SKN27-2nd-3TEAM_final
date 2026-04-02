@@ -9,10 +9,13 @@ from app.database.connection import get_engine
 
 engine = get_engine()
 
-BASE_PATH = "/app/data/raw"   # 도커 컨테이너 기준 경로
+BASE_PATH = "./app/data/raw"   # 도커 컨테이너 기준 경로
 
 def load_members():
     df = pd.read_csv(f"{BASE_PATH}/train_members_v2.csv")
+    
+    # msno 중복 제거 (Primary Key 제약 대응)
+    df.drop_duplicates(subset=['msno'], keep='first', inplace=True)
 
     if "registration_init_time" in df.columns:
         df["registration_init_time"] = pd.to_datetime(
@@ -25,6 +28,8 @@ def load_members():
 
 def load_transactions():
     df = pd.read_csv(f"{BASE_PATH}/transactions_v2.csv")
+    
+    # transactions는 msno가 PK가 아니므로 중복 제거 없이 진행 (FK 제약은 members에 의존)
 
     for col in ["transaction_date", "membership_expire_date"]:
         if col in df.columns:
@@ -56,6 +61,9 @@ def load_user_logs():
 def load_churn_prediction():
     df = pd.read_csv(f"{BASE_PATH}/churn_prediction.csv")
     df = df[["msno", "churn_probability"]].copy()
+    
+    # msno 중복 제거
+    df.drop_duplicates(subset=['msno'], keep='first', inplace=True)
 
     df.to_sql("churn_prediction", con=engine, if_exists="append", index=False)
     print(f"churn_prediction 적재 완료: {len(df)}건")
@@ -75,6 +83,9 @@ def load_churn_predict_reason():
             "category_3",
         ]
     ].copy()
+    
+    # msno 중복 제거
+    df.drop_duplicates(subset=['msno'], keep='first', inplace=True)
 
     df.to_sql("churn_predict_reason", con=engine, if_exists="append", index=False)
     print(f"churn_predict_reason 적재 완료: {len(df)}건")
@@ -83,6 +94,9 @@ def load_churn_predict_reason():
 def load_churn_risk_result():
     df = pd.read_csv(f"{BASE_PATH}/churn_risk_result.csv")
     df = df[["msno", "churn_proba", "risk_score", "risk_grade"]].copy()
+    
+    # msno 중복 제거
+    df.drop_duplicates(subset=['msno'], keep='first', inplace=True)
 
     df.to_sql("churn_risk_result", con=engine, if_exists="append", index=False)
     print(f"churn_risk_result 적재 완료: {len(df)}건")
@@ -120,9 +134,9 @@ if __name__ == "__main__":
 
     load_members()
     load_transactions()
-    load_user_logs()
-    load_churn_prediction()
-    load_churn_predict_reason()
-    load_churn_risk_result()
+    # load_user_logs()
+    # load_churn_prediction()
+    # load_churn_predict_reason()
+    # load_churn_risk_result()
 
     print("CSV 데이터 적재 완료")

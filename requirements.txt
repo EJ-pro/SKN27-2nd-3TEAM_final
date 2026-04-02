@@ -51,3 +51,8 @@ pycparser==3.0
 xgboost
 polars
 scikit-learn
+matplotlib
+seaborn
+tqdm
+catboost
+shap

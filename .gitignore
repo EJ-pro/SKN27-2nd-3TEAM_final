@@ -10,7 +10,7 @@ frontend/pages/action_board/__pycache__
 # 모델 및 데이터 결과물 (대용량)
 model/*.csv
 *.csv
-backend/data/raw/*.csv
+backend/data/raw/user_logs_aug_v2
 # Python
 __pycache__/
 *.py[cod]
