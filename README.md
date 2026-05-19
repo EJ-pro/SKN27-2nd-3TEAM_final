@@ -42,12 +42,12 @@
 ### 3.2. 수학적 마케팅 시뮬레이터 모델 (`frontend/pages/simulator/`)
 마케팅 캠페인의 유형별로 다르게 작용하는 고객 방어 메커니즘을 수학적으로 모델링하여 ROI를 계산합니다.
 - **Group A (할인 쿠폰형) - 가격 탄력성 지수 모델**:
-  $$\text{Retention Rate} = 1 - \text{churn\_prob} \times e^{-k \times d}$$
+  $$\text{Retention Rate} = 1 - \text{Churn Prob} \times e^{-k \times d}$$
   *(여기서 $d$는 할인율, $k$는 가격 민감도 계수. 할인이 높을수록 이탈률이 기하급수적으로 감소)*
 - **Group B (무료 연장형) - 가입 기간 로열티 모델**:
-  $$\text{Retention Rate} = \text{base\_retention} \times \left(1 + \frac{\ln(1 + m)}{\text{loyalty\_scale}}\right)$$
+  $$\text{Retention Rate} = \text{Base Retention} \times \left(1 + \frac{\ln(1 + m)}{\text{Loyalty Scale}}\right)$$
   *(여기서 $m$은 가입 개월 수. 가입 기간이 길어 브랜드 신뢰가 있는 고객일수록 무료 연장 캠페인에 더 크게 반응함)*
-- **3개월 누적 ROI 예측**: 매월 일정한 이탈 감가(`MONTHLY_CHURN_DECAY`)를 적용한 후, 첫 달 매출 공백(무료 연장)과 장기 잔존율 추이를 시뮬레이션하여 최종 우위 그룹을 동적으로 제안합니다.
+  - **3개월 누적 ROI 예측**: 매월 일정한 이탈 감가(`MONTHLY_CHURN_DECAY`)를 적용한 후, 첫 달 매출 공백(무료 연장)과 장기 잔존율 추이를 시뮬레이션하여 최종 우위 그룹을 동적으로 제안합니다.
 
 ---
 
